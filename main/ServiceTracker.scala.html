@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+			<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=utf-8" ></meta>
+        <title>ServiceTracker.scala</title>
+        <script type="text/javascript" src="jquery-all.js"></script>
+        <script type="text/javascript" src="linked.js"></script>
+        <link rel="stylesheet" type="text/css" href="style.css" title="Style"></link>
+    </head>
+    <body>
+        <pre>
+<span class="comment">/*
+ * Copyright 2010 Twitter, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may
+ * not use this file except in compliance with the License. You may obtain
+ * a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</span>
+
+<span class="keyword">package</span> com.twitter.ostrich.admin
+
+<span class="keyword">import</span> scala.collection.mutable
+<span class="keyword">import</span> com.sun.net.httpserver.<span class="delimiter">{</span>HttpHandler, HttpExchange<span class="delimiter">}</span>
+
+<span class="comment">/**
+ * Single server object that can track multiple Service implementations and multiplex the
+ * shutdown &amp; quiesce commands.
+ */</span>
+<span class="keyword">object</span> <a title="object com.twitter.ostrich.admin.ServiceTracker" id="9259">ServiceTracker</a> <span title="ScalaObject" class="delimiter">{</span>
+  <span class="keyword">private</span> <span class="keyword">val</span> <a title="scala.collection.mutable.HashSet[com.twitter.ostrich.admin.Service]" id="24618">services</a> = <span title="scala.collection.mutable.HashSet[com.twitter.ostrich.admin.Service]" class="keyword">new</span> mutable.<span title="scala.collection.mutable.HashSet[com.twitter.ostrich.admin.Service]">HashSet</span><span class="delimiter">[</span>Service<span class="delimiter">]</span>
+
+  <span class="keyword">def</span> <a title="()Unit" id="24620">clearForTests</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#24618" title="=&gt; scala.collection.mutable.HashSet[com.twitter.ostrich.admin.Service]">services</a>.<span title="()Unit">clear</span><span class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="=&gt; List[com.twitter.ostrich.admin.Service]" id="24621">peek</a> = <a href="#24618" title="=&gt; scala.collection.mutable.HashSet[com.twitter.ostrich.admin.Service]">services</a>.<span title="=&gt; List[com.twitter.ostrich.admin.Service]">toList</span>
+
+  <span class="keyword">def</span> <a title="(service: com.twitter.ostrich.admin.Service)Unit" id="24622">register</a><span class="delimiter">(</span><a title="com.twitter.ostrich.admin.Service" id="24626">service</a>: <a href="Service.scala.html#9253" title="com.twitter.ostrich.admin.Service">Service</a><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <span title="(x$1: scala.collection.mutable.HashSet[com.twitter.ostrich.admin.Service])scala.collection.mutable.HashSet[com.twitter.ostrich.admin.Service]">synchronized</span> <span title="Unit" class="delimiter">{</span>
+      <a href="#24618" title="(elem: com.twitter.ostrich.admin.Service)com.twitter.ostrich.admin.ServiceTracker.services.type">services</a> += <a href="#24626" title="com.twitter.ostrich.admin.Service">service</a>
+    <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="()Unit" id="24623">shutdown</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <span title="(x$1: List[com.twitter.ostrich.admin.Service])List[com.twitter.ostrich.admin.Service]">synchronized</span> <span class="delimiter">{</span>
+      <span class="keyword">val</span> <a title="List[com.twitter.ostrich.admin.Service]" id="33743">rv</a> = <a href="#24618" title="=&gt; scala.collection.mutable.HashSet[com.twitter.ostrich.admin.Service]">services</a>.<span title="=&gt; List[com.twitter.ostrich.admin.Service]">toList</span>
+      <a href="#24618" title="=&gt; scala.collection.mutable.HashSet[com.twitter.ostrich.admin.Service]">services</a>.<span title="()Unit">clear</span><span class="delimiter">(</span><span class="delimiter">)</span>
+      <a href="#33743" title="List[com.twitter.ostrich.admin.Service]">rv</a>
+    <span class="delimiter">}</span>.<span title="(f: (com.twitter.ostrich.admin.Service) =&gt; Unit)Unit">foreach</span> <span class="delimiter">{</span> <a href="#33776" title="com.twitter.ostrich.admin.Service">_</a>.<a href="Service.scala.html#20888" title="()Unit">shutdown</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="()Unit" id="24624">quiesce</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <span title="(x$1: List[com.twitter.ostrich.admin.Service])List[com.twitter.ostrich.admin.Service]">synchronized</span> <span class="delimiter">{</span> <a href="#24618" title="=&gt; scala.collection.mutable.HashSet[com.twitter.ostrich.admin.Service]">services</a>.<span title="=&gt; List[com.twitter.ostrich.admin.Service]">toList</span> <span class="delimiter">}</span>.<span title="(f: (com.twitter.ostrich.admin.Service) =&gt; Unit)Unit">foreach</span> <span class="delimiter">{</span> <a href="#33801" title="com.twitter.ostrich.admin.Service">_</a>.<a href="Service.scala.html#20889" title="()Unit">quiesce</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="()Unit" id="24625">reload</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <span title="(x$1: List[com.twitter.ostrich.admin.Service])List[com.twitter.ostrich.admin.Service]">synchronized</span> <span class="delimiter">{</span> <a href="#24618" title="=&gt; scala.collection.mutable.HashSet[com.twitter.ostrich.admin.Service]">services</a>.<span title="=&gt; List[com.twitter.ostrich.admin.Service]">toList</span> <span class="delimiter">}</span>.<span title="(f: (com.twitter.ostrich.admin.Service) =&gt; Unit)Unit">foreach</span> <span class="delimiter">{</span> <a href="#33826" title="com.twitter.ostrich.admin.Service">_</a>.<a href="Service.scala.html#20890" title="()Unit">reload</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+        </pre>
+    </body>
+</html>

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+			<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=utf-8" ></meta>
+        <title>JsonStatsLogger.scala</title>
+        <script type="text/javascript" src="jquery-all.js"></script>
+        <script type="text/javascript" src="linked.js"></script>
+        <link rel="stylesheet" type="text/css" href="style.css" title="Style"></link>
+    </head>
+    <body>
+        <pre>
+<span class="comment">/*
+ * Copyright 2010 Twitter, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may
+ * not use this file except in compliance with the License. You may obtain
+ * a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</span>
+
+<span class="keyword">package</span> com.twitter.ostrich
+<span class="keyword">package</span> stats
+
+<span class="keyword">import</span> java.net.InetAddress
+<span class="keyword">import</span> scala.collection.immutable
+<span class="keyword">import</span> com.twitter.conversions.<span title="object com.twitter.conversions.time">time</span>._
+<span class="keyword">import</span> com.twitter.json.Json
+<span class="keyword">import</span> com.twitter.logging.Logger
+<span class="keyword">import</span> com.twitter.util.<span class="delimiter">{</span>Duration, Time<span class="delimiter">}</span>
+<span class="keyword">import</span> admin.PeriodicBackgroundProcess
+
+<span class="comment">/**
+ * Log all collected stats as a json line to a java logger at a regular interval.
+ */</span>
+<span class="keyword">class</span> <a title="class JsonStatsLogger extends com.twitter.ostrich.admin.PeriodicBackgroundProcess with ScalaObject" id="9334">JsonStatsLogger</a><a href="BackgroundProcess.scala.html#24986" title="ScalaObject" class="delimiter">(</a><span class="keyword">val</span> <a title="com.twitter.logging.Logger" id="38665">logger</a>: <span title="com.twitter.logging.Logger">Logger</span>, <span class="keyword">val</span> <a title="com.twitter.util.Duration" id="38666">period</a>: <span title="com.twitter.util.Duration">Duration</span>, <span class="keyword">val</span> <a title="Option[String]" id="38667">serviceName</a>: <span title="Option[String]">Option</span><span class="delimiter">[</span>String<span class="delimiter">]</span>,
+                      <a title="com.twitter.ostrich.stats.StatsCollection" id="38668">collection</a>: <a href="StatsCollection.scala.html#9357" title="com.twitter.ostrich.stats.StatsCollection">StatsCollection</a><span class="delimiter">)</span>
+<span class="keyword">extends</span> <a href="BackgroundProcess.scala.html#9214" title="com.twitter.ostrich.admin.PeriodicBackgroundProcess">PeriodicBackgroundProcess</a><span class="delimiter">(</span><span title="java.lang.String(&quot;JsonStatsLogger&quot;)" class="string">&quot;JsonStatsLogger&quot;</span>, <a href="#38666" title="com.twitter.util.Duration">period</a><span class="delimiter">)</span> <span class="delimiter">{</span>
+  <span class="keyword">def</span> <a title="(logger: com.twitter.logging.Logger,period: com.twitter.util.Duration)com.twitter.ostrich.stats.JsonStatsLogger" id="38655" class="keyword">this</a><span class="delimiter">(</span><a title="com.twitter.logging.Logger" id="38663">logger</a>: <span title="com.twitter.logging.Logger">Logger</span>, <a title="com.twitter.util.Duration" id="38664">period</a>: <span title="com.twitter.util.Duration">Duration</span><span class="delimiter">)</span> = <a href="#9334" title="JsonStatsLogger.this.type" class="keyword">this</a><span class="delimiter">(</span><a href="#38663" title="com.twitter.logging.Logger">logger</a>, <a href="#38664" title="com.twitter.util.Duration">period</a>, <span title="object None">None</span>, <a href="Stats.scala.html#9346" title="object com.twitter.ostrich.stats.Stats">Stats</a><span class="delimiter">)</span>
+
+  <span class="keyword">val</span> <a title="com.twitter.ostrich.stats.StatsListener" id="38656">listener</a> = <a href="StatsListener.scala.html#28576" title="(collection: com.twitter.ostrich.stats.StatsCollection)com.twitter.ostrich.stats.StatsListener" class="keyword">new</a> <a href="StatsListener.scala.html#9377" title="com.twitter.ostrich.stats.StatsListener">StatsListener</a><span class="delimiter">(</span><a href="#38668" title="com.twitter.ostrich.stats.StatsCollection">collection</a><span class="delimiter">)</span>
+  <span class="keyword">val</span> <a title="java.lang.String" id="38658">hostname</a> = <span title="object java.net.InetAddress">InetAddress</span>.<span title="()java.net.InetAddress">getLocalHost</span><span class="delimiter">(</span><span class="delimiter">)</span>.<span title="()java.lang.String">getCanonicalHostName</span><span class="delimiter">(</span><span class="delimiter">)</span>
+
+  <span class="keyword">def</span> <a title="()Unit" id="38660">periodic</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="com.twitter.ostrich.stats.StatsSummary" id="43741">stats</a> = <a href="#38656" title="=&gt; com.twitter.ostrich.stats.StatsListener">listener</a>.<a href="StatsListener.scala.html#28587" title="()com.twitter.ostrich.stats.StatsSummary">get</a><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="keyword">val</span> <a title="scala.collection.Map[String,Any]" id="43742">statMap</a> =
+      <a href="#43741" title="com.twitter.ostrich.stats.StatsSummary">stats</a>.<a href="StatsProvider.scala.html#28600" title="(xs: scala.collection.TraversableOnce[(String, AnyVal)])scala.collection.Map[String,AnyVal]">counters</a> <span title="(xs: scala.collection.TraversableOnce[(String, AnyVal)])scala.collection.Map[String,AnyVal]">++</span>
+      <a href="#43741" title="com.twitter.ostrich.stats.StatsSummary">stats</a>.<a href="StatsProvider.scala.html#28604" title="=&gt; scala.collection.Map[String,Double]">gauges</a>.<span title="(f: ((String, Double)) =&gt; (String, AnyVal))(implicit bf: scala.collection.generic.CanBuildFrom[scala.collection.Map[String,Double],(String, AnyVal),scala.collection.Map[String,AnyVal]])scala.collection.Map[String,AnyVal]">map</span> <a href="#43782" title="(String, AnyVal)" class="delimiter">{</a> <span title="(String, AnyVal)" class="keyword">case</span> <span class="delimiter">(</span><a title="String" id="43785">key</a>, <a title="Double" id="43786">d</a><span class="delimiter">)</span> =&gt;
+        <span title="(String, AnyVal)" class="keyword">if</span> <span class="delimiter">(</span><a href="#43786" title="implicit scala.Predef.double2Double : (x: Double)java.lang.Double">d</a>.<span title="(x$1: Double)Boolean">longValue</span> == <a href="#43786" title="Double">d</a><span class="delimiter">)</span> <span class="delimiter">{</span> <span title="(_1: String,_2: Long)(String, Long)" class="delimiter">(</span><a href="#43785" title="String">key</a>, <a href="#43786" title="implicit scala.Predef.double2Double : (x: Double)java.lang.Double">d</a>.<span title="()Long">longValue</span><span class="delimiter">)</span> <span class="delimiter">}</span> <span class="keyword">else</span> <span class="delimiter">{</span> <span title="(_1: String,_2: Double)(String, Double)" class="delimiter">(</span><a href="#43785" title="String">key</a>, <a href="#43786" title="Double">d</a><span class="delimiter">)</span> <span class="delimiter">}</span>
+      <span class="delimiter">}</span> <span title="(xs: scala.collection.TraversableOnce[(String, Any)])scala.collection.Map[String,Any]">++</span>
+      <a href="#43741" title="com.twitter.ostrich.stats.StatsSummary">stats</a>.<a href="StatsProvider.scala.html#28602" title="=&gt; scala.collection.Map[String,com.twitter.ostrich.stats.Distribution]">metrics</a>.<span title="(f: ((String, com.twitter.ostrich.stats.Distribution)) =&gt; Traversable[(java.lang.String, Long)])(implicit bf: scala.collection.generic.CanBuildFrom[scala.collection.Map[String,com.twitter.ostrich.stats.Distribution],(java.lang.String, Long),scala.collection.Map[java.lang.String,Long]])scala.collection.Map[java.lang.String,Long]">flatMap</span> <a href="#44014" title="scala.collection.Map[java.lang.String,Long]" class="delimiter">{</a> <span title="scala.collection.Map[java.lang.String,Long]" class="keyword">case</span> <span class="delimiter">(</span><a title="String" id="44017">key</a>, <a title="com.twitter.ostrich.stats.Distribution" id="44018">distribution</a><span class="delimiter">)</span> =&gt;
+        <a href="#44018" title="com.twitter.ostrich.stats.Distribution">distribution</a>.<a href="Distribution.scala.html#34169" title="=&gt; scala.collection.Map[String,Long]">toMap</a>.<span title="(f: ((String, Long)) =&gt; (java.lang.String, Long))(implicit bf: scala.collection.generic.CanBuildFrom[scala.collection.Map[String,Long],(java.lang.String, Long),scala.collection.Map[java.lang.String,Long]])scala.collection.Map[java.lang.String,Long]">map</span> <a href="#44035" title="(java.lang.String, Long)" class="delimiter">{</a> <span title="(java.lang.String, Long)" class="keyword">case</span> <span class="delimiter">(</span><a title="String" id="44038">subkey</a>, <a title="Long" id="44039">value</a><span class="delimiter">)</span> =&gt;
+          <span title="(_1: java.lang.String,_2: Long)(java.lang.String, Long)" class="delimiter">(</span><a href="#44017" title="(x$1: Any)java.lang.String">key</a> <span title="(x$1: Any)java.lang.String">+</span> <span title="java.lang.String(&quot;_&quot;)" class="string">&quot;_&quot;</span> + <a href="#44038" title="String">subkey</a>, <a href="#44039" title="Long">value</a><span class="delimiter">)</span>
+        <span class="delimiter">}</span>
+      <span class="delimiter">}</span> ++
+      <span title="(elems: (java.lang.String, Any)*)scala.collection.immutable.Map[java.lang.String,Any]">Map</span><span class="delimiter">(</span>
+        <span title="(y: String)(java.lang.String, String)" class="string">&quot;service&quot;</span> -&gt; <a href="#38667" title="=&gt; Option[String]">serviceName</a>.<span title="(default: =&gt; String)String">getOrElse</span><span class="delimiter">(</span><span title="java.lang.String(&quot;unknown&quot;)" class="string">&quot;unknown&quot;</span><span class="delimiter">)</span>,
+        <span title="(y: java.lang.String)(java.lang.String, java.lang.String)" class="string">&quot;source&quot;</span> -&gt; <a href="#38658" title="=&gt; java.lang.String">hostname</a>,
+        <span title="(y: Int)(java.lang.String, Int)" class="string">&quot;timestamp&quot;</span> -&gt; <span title="object com.twitter.util.Time">Time</span>.<span title="=&gt; com.twitter.util.Time">now</span>.<span title="=&gt; Int">inSeconds</span>
+      <span class="delimiter">)</span>
+    <span class="keyword">val</span> <a title="scala.collection.Map[java.lang.String,Any]" id="43743">cleanedKeysStatMap</a> = <a href="#43742" title="scala.collection.Map[String,Any]">statMap</a>.<span title="(f: ((String, Any)) =&gt; (java.lang.String, Any))(implicit bf: scala.collection.generic.CanBuildFrom[scala.collection.Map[String,Any],(java.lang.String, Any),scala.collection.Map[java.lang.String,Any]])scala.collection.Map[java.lang.String,Any]">map</span> <a href="#44409" title="(java.lang.String, Any)" class="delimiter">{</a> <span title="(java.lang.String, Any)" class="keyword">case</span> <span class="delimiter">(</span><a title="String" id="44412">key</a>, <a title="Any" id="44413">value</a><span class="delimiter">)</span> =&gt; <span title="(_1: java.lang.String,_2: Any)(java.lang.String, Any)" class="delimiter">(</span><a href="#44412" title="String">key</a>.<span title="(x$1: java.lang.String,x$2: java.lang.String)java.lang.String">replaceAll</span><span class="delimiter">(</span><span title="java.lang.String(&quot;:&quot;)" class="string">&quot;:&quot;</span>, <span title="java.lang.String(&quot;_&quot;)" class="string">&quot;_&quot;</span><span class="delimiter">)</span>, <a href="#44413" title="Any">value</a><span class="delimiter">)</span> <span class="delimiter">}</span>
+
+    <a href="#38665" title="=&gt; com.twitter.logging.Logger">logger</a>.<span title="(msg: String,items: Any*)Unit">info</span><span class="delimiter">(</span><span title="object com.twitter.json.Json">Json</span>.<span title="(obj: Any)com.twitter.json.JsonQuoted">build</span><span class="delimiter">(</span><span title="(elems: (java.lang.String, Any)*)scala.collection.immutable.Map[java.lang.String,Any]">Map</span><span class="delimiter">(</span><a href="#43743" title="scala.collection.Map[java.lang.String,Any]">cleanedKeysStatMap</a>.<span title="=&gt; Seq[(java.lang.String, Any)]">toSeq</span>: _*<span class="delimiter">)</span><span class="delimiter">)</span>.<span title="()String">toString</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+        </pre>
+    </body>
+</html>

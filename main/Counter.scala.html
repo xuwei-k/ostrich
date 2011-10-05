@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+			<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=utf-8" ></meta>
+        <title>Counter.scala</title>
+        <script type="text/javascript" src="jquery-all.js"></script>
+        <script type="text/javascript" src="linked.js"></script>
+        <link rel="stylesheet" type="text/css" href="style.css" title="Style"></link>
+    </head>
+    <body>
+        <pre>
+<span class="comment">/*
+ * Copyright 2009 Twitter, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may
+ * not use this file except in compliance with the License. You may obtain
+ * a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</span>
+
+<span class="keyword">package</span> com.twitter.ostrich.stats
+
+<span class="keyword">import</span> java.util.concurrent.atomic.AtomicLong
+<span class="keyword">import</span> scala.collection.mutable
+
+<span class="comment">/**
+ * A Counter simply keeps track of how many times an event occurred.
+ * All operations are atomic and thread-safe.
+ */</span>
+<span class="keyword">class</span> <a title="class Counter extends java.lang.Object with ScalaObject" id="9305">Counter</a> <span title="ScalaObject" class="delimiter">{</span>
+  <span class="keyword">private</span> <span class="keyword">val</span> <a title="java.util.concurrent.atomic.AtomicLong" id="39700">value</a> = <span title="()java.util.concurrent.atomic.AtomicLong" class="keyword">new</span> <span title="java.util.concurrent.atomic.AtomicLong">AtomicLong</span><span class="delimiter">(</span><span class="delimiter">)</span>
+
+  <span class="comment">/**
+   * Increment the counter by one.
+   */</span>
+  <span class="keyword">def</span> <a title="()Long" id="39702">incr</a><span class="delimiter">(</span><span class="delimiter">)</span>: <span title="Long">Long</span> = <a href="#39700" title="=&gt; java.util.concurrent.atomic.AtomicLong">value</a>.<span title="()Long">incrementAndGet</span>
+
+  <span class="comment">/**
+   * Increment the counter by `n`, atomically.
+   */</span>
+  <span class="keyword">def</span> <a title="(n: Int)Long" id="39703">incr</a><span class="delimiter">(</span><a title="Int" id="39747">n</a>: <span title="Int">Int</span><span class="delimiter">)</span>: <span title="Long">Long</span> = <a href="#39700" title="=&gt; java.util.concurrent.atomic.AtomicLong">value</a>.<span title="(x$1: Long)Long">addAndGet</span><span class="delimiter">(</span><a href="#39747" title="=&gt; Long">n</a><span class="delimiter">)</span>
+
+  <span class="comment">/**
+   * Get the current value.
+   */</span>
+  <span class="keyword">def</span> <a title="()Long" id="39704">apply</a><span class="delimiter">(</span><span class="delimiter">)</span>: <span title="Long">Long</span> = <a href="#39700" title="=&gt; java.util.concurrent.atomic.AtomicLong">value</a>.<span title="()Long">get</span><span class="delimiter">(</span><span class="delimiter">)</span>
+
+  <span class="comment">/**
+   * Set a new value, wiping the old one.
+   */</span>
+  <span class="keyword">def</span> <a title="(n: Long)Unit" id="39705">update</a><span class="delimiter">(</span><a title="Long" id="39752">n</a>: <span title="Long">Long</span><span class="delimiter">)</span> = <a href="#39700" title="=&gt; java.util.concurrent.atomic.AtomicLong">value</a>.<span title="(x$1: Long)Unit">set</span><span class="delimiter">(</span><a href="#39752" title="Long">n</a><span class="delimiter">)</span>
+
+  <span class="comment">/**
+   * Clear the counter back to zero.
+   */</span>
+  <span class="keyword">def</span> <a title="()Unit" id="39706">reset</a><span class="delimiter">(</span><span class="delimiter">)</span> = <a href="#39705" title="(n: Long)Unit">update</a><span class="delimiter">(</span><span title="Long(0L)" class="long">0L</span><span class="delimiter">)</span>
+
+  <span class="keyword">override</span> <span class="keyword">def</span> <a title="()String" id="39707">toString</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span title="implicit scala.Predef.augmentString : (x: String)scala.collection.immutable.StringOps" class="string">&quot;Counter(%d)&quot;</span>.<span title="(args: Any*)String">format</span><span class="delimiter">(</span><a href="#39700" title="=&gt; java.util.concurrent.atomic.AtomicLong">value</a>.<span title="()Long">get</span><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+<span class="delimiter">}</span>
+
+<span class="comment">/**
+ * A Counter that sends modifications to a set of &quot;fanout&quot; counters also.
+ */</span>
+<span class="keyword">class</span> <a title="class FanoutCounter extends com.twitter.ostrich.stats.Counter with ScalaObject" id="9306">FanoutCounter</a><span title="ScalaObject" class="delimiter">(</span><a title="com.twitter.ostrich.stats.Counter*" id="39783">others</a>: <span title="com.twitter.ostrich.stats.Counter*">Counter</span>*<span class="delimiter">)</span> <span class="keyword">extends</span> <a href="#9305" title="com.twitter.ostrich.stats.Counter">Counter</a> <span class="delimiter">{</span>
+  <span class="keyword">override</span> <span class="keyword">def</span> <a title="()Long" id="39777">incr</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <a href="#39783" title="com.twitter.ostrich.stats.Counter*">others</a>.<span title="(f: (com.twitter.ostrich.stats.Counter) =&gt; Long)Unit">foreach</span> <span class="delimiter">{</span> <a href="#39804" title="com.twitter.ostrich.stats.Counter">_</a>.<a href="#39702" title="()Long">incr</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">}</span>
+    <span class="keyword">super</span>.<a href="#39702" title="()Long">incr</a><span class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">override</span> <span class="keyword">def</span> <a title="(n: Int)Long" id="39778">incr</a><span class="delimiter">(</span><a title="Int" id="39814">n</a>: <span title="Int">Int</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <a href="#39783" title="com.twitter.ostrich.stats.Counter*">others</a>.<span title="(f: (com.twitter.ostrich.stats.Counter) =&gt; Long)Unit">foreach</span> <span class="delimiter">{</span> <a href="#39826" title="com.twitter.ostrich.stats.Counter">_</a>.<a href="#39703" title="(n: Int)Long">incr</a><span class="delimiter">(</span><a href="#39814" title="Int">n</a><span class="delimiter">)</span> <span class="delimiter">}</span>
+    <span class="keyword">super</span>.<a href="#39703" title="(n: Int)Long">incr</a><span class="delimiter">(</span><a href="#39814" title="Int">n</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">override</span> <span class="keyword">def</span> <a title="(n: Long)Unit" id="39779">update</a><span class="delimiter">(</span><a title="Long" id="39836">n</a>: <span title="Long">Long</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <a href="#39783" title="com.twitter.ostrich.stats.Counter*">others</a>.<span title="(f: (com.twitter.ostrich.stats.Counter) =&gt; Unit)Unit">foreach</span> <span class="delimiter">{</span> <a href="#39846" title="com.twitter.ostrich.stats.Counter">_</a>.<a href="#39705" title="(n: Long)Unit">update</a><span class="delimiter">(</span><a href="#39836" title="Long">n</a><span class="delimiter">)</span> <span class="delimiter">}</span>
+    <span class="keyword">super</span>.<a href="#39705" title="(n: Long)Unit">update</a><span class="delimiter">(</span><a href="#39836" title="Long">n</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">override</span> <span class="keyword">def</span> <a title="()Unit" id="39780">reset</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <a href="#39783" title="com.twitter.ostrich.stats.Counter*">others</a>.<span title="(f: (com.twitter.ostrich.stats.Counter) =&gt; Unit)Unit">foreach</span> <span class="delimiter">{</span> <a href="#39861" title="com.twitter.ostrich.stats.Counter">_</a>.<a href="#39706" title="()Unit">reset</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">}</span>
+    <span class="keyword">super</span>.<a href="#39706" title="()Unit">reset</a><span class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+        </pre>
+    </body>
+</html>

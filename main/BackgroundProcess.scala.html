@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+			<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=utf-8" ></meta>
+        <title>BackgroundProcess.scala</title>
+        <script type="text/javascript" src="jquery-all.js"></script>
+        <script type="text/javascript" src="linked.js"></script>
+        <link rel="stylesheet" type="text/css" href="style.css" title="Style"></link>
+    </head>
+    <body>
+        <pre>
+<span class="comment">/*
+ * Copyright 2009 - 2011 Twitter, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may
+ * not use this file except in compliance with the License. You may obtain
+ * a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</span>
+
+<span class="keyword">package</span> com.twitter.ostrich.admin
+
+<span class="keyword">import</span> java.util.concurrent.CountDownLatch
+<span class="keyword">import</span> com.twitter.conversions.<span title="object com.twitter.conversions.time">time</span>._
+<span class="keyword">import</span> com.twitter.logging.Logger
+<span class="keyword">import</span> com.twitter.util.<span class="delimiter">{</span>Duration, Time<span class="delimiter">}</span>
+
+<span class="keyword">object</span> <a title="object com.twitter.ostrich.admin.BackgroundProcess" id="9211">BackgroundProcess</a> <span title="ScalaObject" class="delimiter">{</span>
+  <span class="keyword">val</span> <a title="com.twitter.logging.Logger" id="24647">log</a> = <span title="object com.twitter.logging.Logger">Logger</span>.<span title="(name: String)com.twitter.logging.Logger">get</span><span class="delimiter">(</span><span title="()java.lang.Class[_]">getClass</span>.<span title="()java.lang.String">getName</span><span class="delimiter">)</span>
+
+  <span class="comment">/**
+   * Spawn a short-lived thread for a throw-away task.
+   */</span>
+  <span class="keyword">def</span> <a title="(threadName: String,daemon: Boolean)(f: =&gt; Unit)java.lang.Thread" id="24649">spawn</a><span class="delimiter">(</span><a title="String" id="24690">threadName</a>: <span title="String">String</span>, <a title="Boolean" id="24691">daemon</a>: <span title="Boolean">Boolean</span><span class="delimiter">)</span><span class="delimiter">(</span><a title="=&gt; Unit" id="24692">f</a>: =&gt; Unit<span class="delimiter">)</span>: <span title="java.lang.Thread">Thread</span> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="java.lang.Thread" id="24694">thread</a> = <a href="#24695" title="java.lang.Thread" class="keyword">new</a> <a title="anonymous class $anon extends java.lang.Thread" id="24695">Thread</a><span class="delimiter">(</span><a href="#24690" title="String">threadName</a><span class="delimiter">)</span> <span class="delimiter">{</span>
+      <span class="keyword">override</span> <span class="keyword">def</span> <a title="()Unit" id="24697">run</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+        <span class="keyword">try</span> <span class="delimiter">{</span>
+          <a href="#24692" title="=&gt; Unit">f</a>
+        <span class="delimiter">}</span> <span class="keyword">catch</span> <span class="delimiter">{</span>
+          <span title="Unit" class="keyword">case</span> <a title="java.lang.Throwable" id="24766">e</a>: <span title="Throwable">Throwable</span> =&gt;
+            <a href="#24647" title="=&gt; com.twitter.logging.Logger">log</a>.<span title="(thrown: Throwable,msg: String,items: Any*)Unit">error</span><span class="delimiter">(</span><a href="#24766" title="java.lang.Throwable">e</a>, <span title="java.lang.String(&quot;Spawned thread %s (%s) died with a terminal exception&quot;)" class="string">&quot;Spawned thread %s (%s) died with a terminal exception&quot;</span>, <a href="#24690" title="String">threadName</a>, <span title="object java.lang.Thread">Thread</span>.<span title="()java.lang.Thread">currentThread</span><span class="delimiter">)</span>
+        <span class="delimiter">}</span>
+      <span class="delimiter">}</span>
+    <span class="delimiter">}</span>
+
+    <a href="#24694" title="java.lang.Thread">thread</a>.<span title="(x$1: Boolean)Unit">setDaemon</span><span class="delimiter">(</span><a href="#24691" title="Boolean">daemon</a><span class="delimiter">)</span>
+    <a href="#24694" title="java.lang.Thread">thread</a>.<span title="()Unit">start</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <a href="#24694" title="java.lang.Thread">thread</a>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="(threadName: String)(f: =&gt; Unit)java.lang.Thread" id="24650">spawn</a><span class="delimiter">(</span><a title="String" id="24781">threadName</a>: <span title="String">String</span><span class="delimiter">)</span><span class="delimiter">(</span><a title="=&gt; Unit" id="24782">f</a>: =&gt; Unit<span class="delimiter">)</span>: <span title="java.lang.Thread">Thread</span> = <a href="#24649" title="(threadName: String,daemon: Boolean)(f: =&gt; Unit)java.lang.Thread">spawn</a><span class="delimiter">(</span><a href="#24781" title="String">threadName</a>, <span title="Boolean(false)" class="keyword">false</span><span class="delimiter">)</span><span class="delimiter">(</span><a href="#24782" title="=&gt; Unit">f</a><span class="delimiter">)</span>
+  <span class="keyword">def</span> <a title="(threadName: String)(f: =&gt; Unit)java.lang.Thread" id="24651">spawnDaemon</a><span class="delimiter">(</span><a title="String" id="24791">threadName</a>: <span title="String">String</span><span class="delimiter">)</span><span class="delimiter">(</span><a title="=&gt; Unit" id="24792">f</a>: =&gt; Unit<span class="delimiter">)</span>: <span title="java.lang.Thread">Thread</span> = <a href="#24649" title="(threadName: String,daemon: Boolean)(f: =&gt; Unit)java.lang.Thread">spawn</a><span class="delimiter">(</span><a href="#24791" title="String">threadName</a>, <span title="Boolean(true)" class="keyword">true</span><span class="delimiter">)</span><span class="delimiter">(</span><a href="#24792" title="=&gt; Unit">f</a><span class="delimiter">)</span>
+
+  <span class="keyword">def</span> <a title="(f: =&gt; Unit)Unit" id="24652">apply</a><span class="delimiter">(</span><a title="=&gt; Unit" id="24799">f</a>: =&gt; Unit<span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#24651" title="(threadName: String)(f: =&gt; Unit)java.lang.Thread">spawnDaemon</a><span class="delimiter">(</span><span title="java.lang.String(&quot;background&quot;)" class="string">&quot;background&quot;</span><span class="delimiter">)</span><span title="Unit" class="delimiter">(</span><a href="#24799" title="=&gt; Unit">f</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+<span class="comment">/**
+ * Generalization of a background process that runs in a thread, and can be
+ * stopped. Stopping the thread waits for it to finish running.
+ *
+ * The code block will be run inside a &quot;forever&quot; loop, so it should either
+ * call a method that can be interrupted (like sleep) or block for a low
+ * timeout.
+ */</span>
+<span class="keyword">abstract</span> <span class="keyword">class</span> <a title="class BackgroundProcess extends java.lang.Object with com.twitter.ostrich.admin.Service with ScalaObject" id="9213">BackgroundProcess</a><span title="ScalaObject" class="delimiter">(</span><a title="String" id="24675">name</a>: <span title="String">String</span>, <a title="Boolean" id="24676">interruptable</a>: <span title="Boolean">Boolean</span><span class="delimiter">)</span> <span class="keyword">extends</span> <a href="Service.scala.html#9253" title="com.twitter.ostrich.admin.Service">Service</a> <span class="delimiter">{</span>
+  <span class="keyword">def</span> <a title="(name: String)com.twitter.ostrich.admin.BackgroundProcess" id="24658" class="keyword">this</a><span class="delimiter">(</span><a title="String" id="24677">name</a>: <span title="String">String</span><span class="delimiter">)</span> = <a href="#9213" title="BackgroundProcess.this.type" class="keyword">this</a><span class="delimiter">(</span><a href="#24677" title="String">name</a>, <span title="Boolean(true)" class="keyword">true</span><span class="delimiter">)</span>
+
+  <span class="keyword">private</span> <span class="keyword">val</span> <a title="com.twitter.logging.Logger" id="24659">log</a> = <span title="object com.twitter.logging.Logger">Logger</span>.<span title="(name: String)com.twitter.logging.Logger">get</span><span class="delimiter">(</span><a href="#9213" title="()java.lang.Class[_]">getClass</a>.<span title="()java.lang.String">getName</span><span class="delimiter">)</span>
+
+  @volatile <span class="keyword">var</span> <a title="Boolean" id="24662">running</a> = <span title="Boolean(false)" class="keyword">false</span>
+  <span class="keyword">val</span> <a title="java.util.concurrent.CountDownLatch" id="24664">startLatch</a> = <span title="java.util.concurrent.CountDownLatch" class="keyword">new</span> <span title="java.util.concurrent.CountDownLatch">CountDownLatch</span><span class="delimiter">(</span><span title="Int(1)" class="int">1</span><span class="delimiter">)</span>
+
+  <span class="keyword">val</span> <a title="&lt;refinement&gt; extends java.lang.Object with java.lang.Runnable" id="24666">runnable</a> = <a href="#24832" title="java.lang.Object with java.lang.Runnable" class="keyword">new</a> <a title="anonymous class $anon extends java.lang.Object with java.lang.Runnable" id="24832">Runnable</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <span class="keyword">def</span> <a title="()Unit" id="24834">run</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+      <a href="#24664" title="=&gt; java.util.concurrent.CountDownLatch">startLatch</a>.<span title="()Unit">countDown</span><span class="delimiter">(</span><span class="delimiter">)</span>
+      <span title="Unit" class="keyword">while</span> <span class="delimiter">(</span><a href="#24662" title="=&gt; Boolean">running</a><span class="delimiter">)</span> <span class="delimiter">{</span>
+        <a href="#24839" title="()Unit" class="keyword">try</a> <span class="delimiter">{</span>
+          <a href="#24673" title="()Unit">runLoop</a><span class="delimiter">(</span><span class="delimiter">)</span>
+        <span class="delimiter">}</span> <span class="keyword">catch</span> <span class="delimiter">{</span>
+          <span title="Unit" class="keyword">case</span> <a title="java.lang.InterruptedException" id="24843">e</a>: <span title="java.lang.InterruptedException">InterruptedException</span> =&gt;
+            <a href="#24659" title="=&gt; com.twitter.logging.Logger">log</a>.<span title="(msg: String,items: Any*)Unit">info</span><span class="delimiter">(</span><span title="java.lang.String(&quot;%s exiting by request.&quot;)" class="string">&quot;%s exiting by request.&quot;</span>, <a href="#24675" title="String">name</a><span class="delimiter">)</span>
+            <a href="#24662" title="(x$1: Boolean)Unit">running</a> = <span title="Boolean(false)" class="keyword">false</span>
+          <span title="Unit" class="keyword">case</span> <a title="java.lang.Throwable" id="24853">e</a>: <span title="Throwable">Throwable</span> =&gt;
+            <a href="#24659" title="=&gt; com.twitter.logging.Logger">log</a>.<span title="(thrown: Throwable,msg: String,items: Any*)Unit">error</span><span class="delimiter">(</span><a href="#24853" title="java.lang.Throwable">e</a>, <span title="java.lang.String(&quot;Background process %s died with unexpected exception: %s&quot;)" class="string">&quot;Background process %s died with unexpected exception: %s&quot;</span>, <a href="#24675" title="String">name</a>, <a href="#24853" title="java.lang.Throwable">e</a><span class="delimiter">)</span>
+            <a href="#24662" title="(x$1: Boolean)Unit">running</a> = <span title="Boolean(false)" class="keyword">false</span>
+        <span class="delimiter">}</span>
+      <span class="delimiter">}</span>
+      <a href="#24659" title="=&gt; com.twitter.logging.Logger">log</a>.<span title="(msg: String,items: Any*)Unit">info</span><span class="delimiter">(</span><span title="java.lang.String(&quot;%s exiting.&quot;)" class="string">&quot;%s exiting.&quot;</span>, <a href="#24675" title="String">name</a><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">val</span> <a title="java.lang.Thread" id="24668">thread</a> = <span title="(x$1: java.lang.Runnable,x$2: java.lang.String)java.lang.Thread" class="keyword">new</span> <span title="java.lang.Thread">Thread</span><span class="delimiter">(</span><a href="#24666" title="=&gt; &lt;refinement&gt; extends java.lang.Object with java.lang.Runnable">runnable</a>, <a href="#24675" title="String">name</a><span class="delimiter">)</span>
+
+  <span class="keyword">def</span> <a title="()Unit" id="24670">start</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <span title="Unit" class="keyword">if</span> <span class="delimiter">(</span><span title="=&gt; Boolean">!</span><a href="#24662" title="=&gt; Boolean">running</a><span class="delimiter">)</span> <span class="delimiter">{</span>
+      <a href="#24659" title="=&gt; com.twitter.logging.Logger">log</a>.<span title="(msg: String,items: Any*)Unit">info</span><span class="delimiter">(</span><span title="java.lang.String(&quot;Starting %s&quot;)" class="string">&quot;Starting %s&quot;</span>, <a href="#24675" title="String">name</a><span class="delimiter">)</span>
+      <a href="#24662" title="(x$1: Boolean)Unit">running</a> = <span title="Boolean(true)" class="keyword">true</span>
+      <a href="#24668" title="=&gt; java.lang.Thread">thread</a>.<span title="()Unit">start</span><span class="delimiter">(</span><span class="delimiter">)</span>
+      <a href="#24664" title="=&gt; java.util.concurrent.CountDownLatch">startLatch</a>.<span title="()Unit">await</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="()Unit" id="24671">stop</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#24662" title="(x$1: Boolean)Unit">running</a> = <span title="Boolean(false)" class="keyword">false</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="()Unit" id="24672">shutdown</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#24671" title="()Unit">stop</a><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="keyword">try</span> <span class="delimiter">{</span>
+      <span title="Unit" class="keyword">if</span> <span class="delimiter">(</span><a href="#24676" title="Boolean">interruptable</a><span class="delimiter">)</span> <a href="#24668" title="=&gt; java.lang.Thread">thread</a>.<span title="()Unit">interrupt</span><span class="delimiter">(</span><span class="delimiter">)</span>
+      <a href="#24668" title="=&gt; java.lang.Thread">thread</a>.<span title="()Unit">join</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span> <span class="keyword">catch</span> <span class="delimiter">{</span>
+      <span title="Unit" class="keyword">case</span> <a title="java.lang.Throwable" id="24972">e</a>: <span title="Throwable">Throwable</span> =&gt;
+        <a href="#24659" title="=&gt; com.twitter.logging.Logger">log</a>.<span title="(thrown: Throwable,msg: String,items: Any*)Unit">error</span><span class="delimiter">(</span><a href="#24972" title="java.lang.Throwable">e</a>, <span title="java.lang.String(&quot;Failed to shutdown background process %s&quot;)" class="string">&quot;Failed to shutdown background process %s&quot;</span>, <a href="#24675" title="String">name</a><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="()Unit" id="24673">runLoop</a><span class="delimiter">(</span><span class="delimiter">)</span>
+<span class="delimiter">}</span>
+
+<span class="comment">/**
+ * Background process that performs some task periodically, over a given duration. If the duration
+ * is a useful multiple of seconds, the first event will be staggered so that it takes place on an
+ * even multiple. (For example, a minutely event will first trigger at the top of a minute.)
+ *
+ * The `periodic()` method implements the periodic event.
+ */</span>
+<span class="keyword">abstract</span> <span class="keyword">class</span> <a title="class PeriodicBackgroundProcess extends com.twitter.ostrich.admin.BackgroundProcess with ScalaObject" id="9214">PeriodicBackgroundProcess</a><span title="ScalaObject" class="delimiter">(</span><a title="String" id="24994">name</a>: <span title="String">String</span>, <span class="keyword">private</span> <span class="keyword">val</span> <a title="com.twitter.util.Duration" id="24995">period</a>: <span title="com.twitter.util.Duration">Duration</span>, <a title="Boolean" id="24996">interruptable</a>: <span title="Boolean">Boolean</span><span class="delimiter">)</span>
+<span class="keyword">extends</span> <a href="#9213" title="com.twitter.ostrich.admin.BackgroundProcess">BackgroundProcess</a><span class="delimiter">(</span><a href="#24994" title="String">name</a>, <a href="#24996" title="Boolean">interruptable</a><span class="delimiter">)</span> <span class="delimiter">{</span>
+  <span class="keyword">def</span> <a title="(name: String,period: com.twitter.util.Duration)com.twitter.ostrich.admin.PeriodicBackgroundProcess" id="24986" class="keyword">this</a><span class="delimiter">(</span><a title="String" id="25004">name</a>: <span title="String">String</span>, <a title="com.twitter.util.Duration" id="25005">period</a>: <span title="com.twitter.util.Duration">Duration</span><span class="delimiter">)</span> = <a href="#9214" title="PeriodicBackgroundProcess.this.type" class="keyword">this</a><span class="delimiter">(</span><a href="#25004" title="String">name</a>, <a href="#25005" title="com.twitter.util.Duration">period</a>, <span title="Boolean(true)" class="keyword">true</span><span class="delimiter">)</span>
+
+  <span class="keyword">def</span> <a title="=&gt; com.twitter.util.Duration" id="24987">nextRun</a>: <span title="com.twitter.util.Duration">Duration</span> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="com.twitter.util.Time" id="25015">t</a> = <span title="object com.twitter.util.Time">Time</span>.<span title="(delta: com.twitter.util.Duration)com.twitter.util.Time">now</span> + <a href="#24995" title="=&gt; com.twitter.util.Duration">period</a>
+    <span class="comment">// truncate to nearest round multiple of the desired repeat in seconds.</span>
+    <span title="com.twitter.util.Duration" class="keyword">if</span> <span class="delimiter">(</span><a href="#24995" title="(that: com.twitter.util.Duration)Boolean">period</a> &gt;= <span title="implicit com.twitter.conversions.time.intToTimeableNumber : (i: Int)com.twitter.conversions.time.RichWholeNumber" class="int">1</span>.<span title="=&gt; com.twitter.util.Duration">second</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+      <span title="object com.twitter.util.Time">Time</span>.<span title="(seconds: Int)com.twitter.util.Time">fromSeconds</span><span title="(that: com.twitter.util.Time)com.twitter.util.Duration" class="delimiter">(</span><span title="(x$1: Int)Int" class="delimiter">(</span><a href="#25015" title="com.twitter.util.Time">t</a>.<span title="(x$1: Int)Int">inSeconds</span> / <a href="#24995" title="=&gt; com.twitter.util.Duration">period</a>.<span title="=&gt; Int">inSeconds</span><span class="delimiter">)</span> * <a href="#24995" title="=&gt; com.twitter.util.Duration">period</a>.<span title="=&gt; Int">inSeconds</span><span class="delimiter">)</span> - <span title="object com.twitter.util.Time">Time</span>.<span title="=&gt; com.twitter.util.Time">now</span>
+    <span class="delimiter">}</span> <span class="keyword">else</span> <span class="delimiter">{</span>
+      <a href="#25015" title="(that: com.twitter.util.Time)com.twitter.util.Duration">t</a> - <span title="object com.twitter.util.Time">Time</span>.<span title="=&gt; com.twitter.util.Time">now</span>
+    <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="()Unit" id="24988">runLoop</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="Long" id="25383">delay</a> = <a href="#24987" title="=&gt; com.twitter.util.Duration">nextRun</a>.<span title="=&gt; Long">inMilliseconds</span>
+    <span title="Unit" class="keyword">if</span> <span class="delimiter">(</span><a href="#25383" title="(x$1: Int)Boolean">delay</a> &gt; <span title="Int(0)" class="int">0</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+      <span title="object java.lang.Thread">Thread</span>.<span title="(x$1: Long)Unit">sleep</span><span class="delimiter">(</span><a href="#25383" title="Long">delay</a><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+
+    <a href="#24989" title="()Unit">periodic</a><span class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Implement the periodic event here.
+   */</span>
+  <span class="keyword">def</span> <a title="()Unit" id="24989">periodic</a><span class="delimiter">(</span><span class="delimiter">)</span>
+<span class="delimiter">}</span>
+
+        </pre>
+    </body>
+</html>

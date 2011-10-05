@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+			<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=utf-8" ></meta>
+        <title>ServerConfig.scala</title>
+        <script type="text/javascript" src="jquery-all.js"></script>
+        <script type="text/javascript" src="linked.js"></script>
+        <link rel="stylesheet" type="text/css" href="style.css" title="Style"></link>
+    </head>
+    <body>
+        <pre>
+<span class="comment">/*
+ * Copyright 2011 Twitter, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may
+ * not use this file except in compliance with the License. You may obtain
+ * a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</span>
+
+<span class="keyword">package</span> com.twitter.ostrich
+<span class="keyword">package</span> admin
+<span class="keyword">package</span> config
+
+<span class="keyword">import</span> com.twitter.logging.Logger
+<span class="keyword">import</span> com.twitter.logging.config.LoggerConfig
+<span class="keyword">import</span> com.twitter.util.Config
+
+<span class="keyword">abstract</span> <span class="keyword">class</span> <a title="class ServerConfig[T &lt;: com.twitter.ostrich.admin.Service] extends java.lang.Object with com.twitter.util.Config[(com.twitter.ostrich.admin.RuntimeEnvironment) =&gt; T] with ScalaObject" id="9296">ServerConfig</a><span class="delimiter">[</span><a title="&gt;: Nothing &lt;: com.twitter.ostrich.admin.Service" id="9297">T</a> &lt;: Service<span class="delimiter">]</span> <span title="ScalaObject" class="keyword">extends</span> <span title="com.twitter.util.Config[(com.twitter.ostrich.admin.RuntimeEnvironment) =&gt; T]">Config</span><span class="delimiter">[</span>RuntimeEnvironment =&gt; T<span class="delimiter">]</span> <span class="delimiter">{</span>
+  <span class="keyword">var</span> <a title="List[com.twitter.logging.config.LoggerConfig]" id="39587">loggers</a>: <span title="List[com.twitter.logging.config.LoggerConfig]">List</span><span class="delimiter">[</span>LoggerConfig<span class="delimiter">]</span> = <span title="object Nil">Nil</span>
+  <span class="keyword">var</span> <a title="com.twitter.ostrich.admin.config.AdminServiceConfig" id="39590">admin</a> = <span title="com.twitter.ostrich.admin.config.AdminServiceConfig" class="keyword">new</span> <a href="AdminServiceConfig.scala.html#9289" title="com.twitter.ostrich.admin.config.AdminServiceConfig">AdminServiceConfig</a><span class="delimiter">(</span><span class="delimiter">)</span>
+
+  <span class="keyword">protected</span> <span class="keyword">var</span> <a title="Option[com.twitter.ostrich.admin.AdminHttpService]" id="39593">httpServer</a>: <span title="Option[com.twitter.ostrich.admin.AdminHttpService]">Option</span><span class="delimiter">[</span>AdminHttpService<span class="delimiter">]</span> = <span title="object None">None</span>
+
+  <span class="keyword">def</span> <a title="()(com.twitter.ostrich.admin.RuntimeEnvironment) =&gt; T" id="39595">apply</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span class="delimiter">{</span> <span class="delimiter">(</span>runtime: <a href="RuntimeEnvironment.scala.html#9249" title="com.twitter.ostrich.admin.RuntimeEnvironment">RuntimeEnvironment</a><span class="delimiter">)</span> =&gt;
+    <span title="object com.twitter.logging.Logger">Logger</span>.<span title="(config: List[com.twitter.logging.config.LoggerConfig])Unit">configure</span><span class="delimiter">(</span><a href="#39587" title="=&gt; List[com.twitter.logging.config.LoggerConfig]">loggers</a><span class="delimiter">)</span>
+    <a href="#39593" title="(x$1: Option[com.twitter.ostrich.admin.AdminHttpService])Unit">httpServer</a> = <a href="AdminServiceConfig.scala.html#38831" title="()(com.twitter.ostrich.admin.RuntimeEnvironment) =&gt; Option[com.twitter.ostrich.admin.AdminHttpService]">admin</a><span title="(v1: com.twitter.ostrich.admin.RuntimeEnvironment)Option[com.twitter.ostrich.admin.AdminHttpService]" class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">(</span><a href="#39624" title="com.twitter.ostrich.admin.RuntimeEnvironment">runtime</a><span class="delimiter">)</span>
+    <span class="keyword">val</span> <a title="T" id="39625">service</a> = <a href="#39596" title="(runtime: com.twitter.ostrich.admin.RuntimeEnvironment)T">apply</a><span class="delimiter">(</span><a href="#39624" title="com.twitter.ostrich.admin.RuntimeEnvironment">runtime</a><span class="delimiter">)</span>
+    <a href="ServiceTracker.scala.html#9259" title="object com.twitter.ostrich.admin.ServiceTracker">ServiceTracker</a>.<a href="ServiceTracker.scala.html#24622" title="(service: com.twitter.ostrich.admin.Service)Unit">register</a><span class="delimiter">(</span><a href="#39625" title="T">service</a><span class="delimiter">)</span>
+    <a href="#39625" title="T">service</a>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="(runtime: com.twitter.ostrich.admin.RuntimeEnvironment)T" id="39596">apply</a><span class="delimiter">(</span><a title="com.twitter.ostrich.admin.RuntimeEnvironment" id="39635">runtime</a>: <a href="RuntimeEnvironment.scala.html#9249" title="com.twitter.ostrich.admin.RuntimeEnvironment">RuntimeEnvironment</a><span class="delimiter">)</span>: <a href="#9297" title="T">T</a>
+<span class="delimiter">}</span>
+
+        </pre>
+    </body>
+</html>

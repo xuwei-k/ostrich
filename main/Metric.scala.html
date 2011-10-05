@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+			<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=utf-8" ></meta>
+        <title>Metric.scala</title>
+        <script type="text/javascript" src="jquery-all.js"></script>
+        <script type="text/javascript" src="linked.js"></script>
+        <link rel="stylesheet" type="text/css" href="style.css" title="Style"></link>
+    </head>
+    <body>
+        <pre>
+<span class="comment">/*
+ * Copyright 2009 Twitter, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may
+ * not use this file except in compliance with the License. You may obtain
+ * a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</span>
+
+<span class="keyword">package</span> com.twitter.ostrich
+<span class="keyword">package</span> stats
+
+<span class="keyword">import</span> scala.collection.mutable
+<span class="keyword">import</span> com.twitter.logging.Logger
+
+<span class="comment">/**
+ * A Metric collates data points and can report a Distribution.
+ */</span>
+<span class="keyword">class</span> <a title="class Metric extends java.lang.Object with ScalaObject" id="9340">Metric</a> <span title="ScalaObject" class="delimiter">{</span>
+  <span class="keyword">val</span> <a title="com.twitter.logging.Logger" id="44522">log</a> = <span title="object com.twitter.logging.Logger">Logger</span>.<span title="(name: String)com.twitter.logging.Logger">get</span><span class="delimiter">(</span><a href="#9340" title="()java.lang.Class[_]">getClass</a>.<span title="()java.lang.String">getName</span><span class="delimiter">)</span>
+
+  <span class="keyword">private</span> <span class="keyword">var</span> <a title="com.twitter.ostrich.stats.Histogram" id="44525">histogram</a> = <span title="com.twitter.ostrich.stats.Histogram" class="keyword">new</span> <a href="Histogram.scala.html#9323" title="com.twitter.ostrich.stats.Histogram">Histogram</a><span class="delimiter">(</span><span class="delimiter">)</span>
+
+  <span class="comment">/**
+   * Resets the state of this Metric. Clears all data points collected so far.
+   */</span>
+  <span class="keyword">def</span> <a title="()Unit" id="44527">clear</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#9340" title="(x$1: Unit)Unit">synchronized</a> <span class="delimiter">{</span>
+      <a href="#44525" title="=&gt; com.twitter.ostrich.stats.Histogram">histogram</a>.<a href="Histogram.scala.html#34184" title="()Unit">clear</a><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Adds a data point.
+   */</span>
+  <span class="keyword">def</span> <a title="(n: Int)Long" id="44528">add</a><span class="delimiter">(</span><a title="Int" id="44552">n</a>: <span title="Int">Int</span><span class="delimiter">)</span>: <span title="Long">Long</span> = <span class="delimiter">{</span>
+    <span title="Long" class="keyword">if</span> <span class="delimiter">(</span><a href="#44552" title="(x$1: Int)Boolean">n</a> &gt; <span title="Int(-1)">-</span><span class="int">1</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+      <a href="#9340" title="(x$1: Long)Long">synchronized</a> <span class="delimiter">{</span>
+        <a href="#44525" title="=&gt; com.twitter.ostrich.stats.Histogram">histogram</a>.<a href="Histogram.scala.html#34183" title="(n: Int)Long">add</a><span class="delimiter">(</span><a href="#44552" title="Int">n</a><span class="delimiter">)</span>
+      <span class="delimiter">}</span>
+    <span class="delimiter">}</span> <span class="keyword">else</span> <span class="delimiter">{</span>
+      <a href="#44522" title="=&gt; com.twitter.logging.Logger">log</a>.<span title="(msg: String,items: Any*)Unit">warning</span><span class="delimiter">(</span><span title="java.lang.String(&quot;Tried to add a negative data point.&quot;)" class="string">&quot;Tried to add a negative data point.&quot;</span><span class="delimiter">)</span>
+      <a href="#44525" title="=&gt; com.twitter.ostrich.stats.Histogram">histogram</a>.<a href="Histogram.scala.html#34176" title="=&gt; Long">count</a>
+    <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Add a summarized set of data points.
+   */</span>
+  <span class="keyword">def</span> <a title="(distribution: com.twitter.ostrich.stats.Distribution)Long" id="44529">add</a><span class="delimiter">(</span><a title="com.twitter.ostrich.stats.Distribution" id="44567">distribution</a>: <a href="Distribution.scala.html#9314" title="com.twitter.ostrich.stats.Distribution">Distribution</a><span class="delimiter">)</span>: <span title="Long">Long</span> = <a href="#9340" title="(x$1: Long)Long">synchronized</a> <span class="delimiter">{</span>
+    <a href="#44525" title="=&gt; com.twitter.ostrich.stats.Histogram">histogram</a>.<a href="Histogram.scala.html#34190" title="(other: com.twitter.ostrich.stats.Histogram)Unit">merge</a><span class="delimiter">(</span><a href="#44567" title="com.twitter.ostrich.stats.Distribution">distribution</a>.<a href="Distribution.scala.html#34154" title="=&gt; com.twitter.ostrich.stats.Histogram">histogram</a><span class="delimiter">)</span>
+    <a href="#44525" title="=&gt; com.twitter.ostrich.stats.Histogram">histogram</a>.<a href="Histogram.scala.html#34176" title="=&gt; Long">count</a>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">override</span> <span class="keyword">def</span> <a title="()com.twitter.ostrich.stats.Metric" id="44530">clone</a><span class="delimiter">(</span><span class="delimiter">)</span>: <a href="#9340" title="com.twitter.ostrich.stats.Metric">Metric</a> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="com.twitter.ostrich.stats.Metric" id="44575">rv</a> = <span title="com.twitter.ostrich.stats.Metric" class="keyword">new</span> <a href="#9340" title="com.twitter.ostrich.stats.Metric">Metric</a>
+    <a href="#44575" title="com.twitter.ostrich.stats.Metric">rv</a>.<a href="#44525" title="(x$1: com.twitter.ostrich.stats.Histogram)Unit">histogram</a> = <a href="#44525" title="=&gt; com.twitter.ostrich.stats.Histogram">histogram</a>.<a href="Histogram.scala.html#34195" title="()com.twitter.ostrich.stats.Histogram">clone</a><span class="delimiter">(</span><span class="delimiter">)</span>
+    <a href="#44575" title="com.twitter.ostrich.stats.Metric">rv</a>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Returns a Distribution for this Metric.
+   */</span>
+  <span class="keyword">def</span> <a title="()com.twitter.ostrich.stats.Distribution" id="44531">apply</a><span class="delimiter">(</span><span class="delimiter">)</span>: <a href="Distribution.scala.html#9314" title="com.twitter.ostrich.stats.Distribution">Distribution</a> = <a href="#9340" title="(x$1: com.twitter.ostrich.stats.Distribution)com.twitter.ostrich.stats.Distribution">synchronized</a> <span class="delimiter">{</span> <a href="Histogram.scala.html#34192" title="()com.twitter.ostrich.stats.Distribution">histogram</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+<span class="keyword">class</span> <a title="class FanoutMetric extends com.twitter.ostrich.stats.Metric with ScalaObject" id="9341">FanoutMetric</a><span title="ScalaObject" class="delimiter">(</span><a title="com.twitter.ostrich.stats.Metric*" id="44594">others</a>: <span title="com.twitter.ostrich.stats.Metric*">Metric</span>*<span class="delimiter">)</span> <span class="keyword">extends</span> <a href="#9340" title="com.twitter.ostrich.stats.Metric">Metric</a> <span class="delimiter">{</span>
+  <span class="keyword">override</span> <span class="keyword">def</span> <a title="()Unit" id="44589">clear</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#44594" title="com.twitter.ostrich.stats.Metric*">others</a>.<span title="(f: (com.twitter.ostrich.stats.Metric) =&gt; Unit)Unit">foreach</span> <span class="delimiter">{</span> <a href="#44609" title="com.twitter.ostrich.stats.Metric">_</a>.<a href="#44527" title="()Unit">clear</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">}</span>
+    <span class="keyword">super</span>.<a href="#44527" title="()Unit">clear</a><span class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">override</span> <span class="keyword">def</span> <a title="(n: Int)Long" id="44590">add</a><span class="delimiter">(</span><a title="Int" id="44615">n</a>: <span title="Int">Int</span><span class="delimiter">)</span> = <a href="#9341" title="(x$1: Long)Long">synchronized</a> <span class="delimiter">{</span>
+    <a href="#44594" title="com.twitter.ostrich.stats.Metric*">others</a>.<span title="(f: (com.twitter.ostrich.stats.Metric) =&gt; Long)Unit">foreach</span> <span class="delimiter">{</span> <a href="#44629" title="com.twitter.ostrich.stats.Metric">_</a>.<a href="#44528" title="(n: Int)Long">add</a><span class="delimiter">(</span><a href="#44615" title="Int">n</a><span class="delimiter">)</span> <span class="delimiter">}</span>
+    <span class="keyword">super</span>.<a href="#44528" title="(n: Int)Long">add</a><span class="delimiter">(</span><a href="#44615" title="Int">n</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">override</span> <span class="keyword">def</span> <a title="(distribution: com.twitter.ostrich.stats.Distribution)Long" id="44591">add</a><span class="delimiter">(</span><a title="com.twitter.ostrich.stats.Distribution" id="44645">distribution</a>: <a href="Distribution.scala.html#9314" title="com.twitter.ostrich.stats.Distribution">Distribution</a><span class="delimiter">)</span> = <a href="#9341" title="(x$1: Long)Long">synchronized</a> <span class="delimiter">{</span>
+    <a href="#44594" title="com.twitter.ostrich.stats.Metric*">others</a>.<span title="(f: (com.twitter.ostrich.stats.Metric) =&gt; Long)Unit">foreach</span> <span class="delimiter">{</span> <a href="#44659" title="com.twitter.ostrich.stats.Metric">_</a>.<a href="#44529" title="(distribution: com.twitter.ostrich.stats.Distribution)Long">add</a><span class="delimiter">(</span><a href="#44645" title="com.twitter.ostrich.stats.Distribution">distribution</a><span class="delimiter">)</span> <span class="delimiter">}</span>
+    <span class="keyword">super</span>.<a href="#44529" title="(distribution: com.twitter.ostrich.stats.Distribution)Long">add</a><span class="delimiter">(</span><a href="#44645" title="com.twitter.ostrich.stats.Distribution">distribution</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+        </pre>
+    </body>
+</html>

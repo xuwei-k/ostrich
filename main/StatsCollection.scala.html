@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="utf-8"?>
+			<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=utf-8" ></meta>
+        <title>StatsCollection.scala</title>
+        <script type="text/javascript" src="jquery-all.js"></script>
+        <script type="text/javascript" src="linked.js"></script>
+        <link rel="stylesheet" type="text/css" href="style.css" title="Style"></link>
+    </head>
+    <body>
+        <pre>
+<span class="comment">/*
+ * Copyright 2009 Twitter, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may
+ * not use this file except in compliance with the License. You may obtain
+ * a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</span>
+
+<span class="keyword">package</span> com.twitter.ostrich.stats
+
+<span class="keyword">import</span> java.lang.management._
+<span class="keyword">import</span> java.util.concurrent.ConcurrentHashMap
+<span class="keyword">import</span> scala.collection.<span class="delimiter">{</span>Map, mutable, immutable<span class="delimiter">}</span>
+<span class="keyword">import</span> com.twitter.conversions.<span title="object com.twitter.conversions.string">string</span>._
+<span class="keyword">import</span> com.twitter.json.<span class="delimiter">{</span>Json, JsonSerializable<span class="delimiter">}</span>
+<span class="keyword">import</span> com.twitter.util.Local
+
+<span class="comment">/**
+ * Concrete StatsProvider that tracks counters and timings.
+ */</span>
+<span class="keyword">class</span> <a title="class StatsCollection extends java.lang.Object with com.twitter.ostrich.stats.StatsProvider with com.twitter.json.JsonSerializable with ScalaObject" id="9357">StatsCollection</a> <span title="ScalaObject" class="keyword">extends</span> <a href="StatsProvider.scala.html#9390" title="com.twitter.ostrich.stats.StatsProvider">StatsProvider</a> <span class="keyword">with</span> <span title="com.twitter.json.JsonSerializable">JsonSerializable</span> <span class="delimiter">{</span>
+  <span class="keyword">import</span> scala.collection.<span title="object scala.collection.JavaConverters">JavaConverters</span>._
+
+  <span class="keyword">protected</span> <span class="keyword">val</span> <a title="java.util.concurrent.ConcurrentHashMap[String,com.twitter.ostrich.stats.Counter]" id="24006">counterMap</a> = <span title="()java.util.concurrent.ConcurrentHashMap[String,com.twitter.ostrich.stats.Counter]" class="keyword">new</span> <span title="java.util.concurrent.ConcurrentHashMap[String,com.twitter.ostrich.stats.Counter]">ConcurrentHashMap</span><span class="delimiter">[</span>String, Counter<span class="delimiter">]</span><span class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="keyword">protected</span> <span class="keyword">val</span> <a title="java.util.concurrent.ConcurrentHashMap[String,com.twitter.ostrich.stats.Metric]" id="24008">metricMap</a> = <span title="()java.util.concurrent.ConcurrentHashMap[String,com.twitter.ostrich.stats.Metric]" class="keyword">new</span> <span title="java.util.concurrent.ConcurrentHashMap[String,com.twitter.ostrich.stats.Metric]">ConcurrentHashMap</span><span class="delimiter">[</span>String, Metric<span class="delimiter">]</span><span class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="keyword">protected</span> <span class="keyword">val</span> <a title="java.util.concurrent.ConcurrentHashMap[String,() =&gt; Double]" id="24010">gaugeMap</a> = <span title="()java.util.concurrent.ConcurrentHashMap[String,() =&gt; Double]" class="keyword">new</span> <span title="java.util.concurrent.ConcurrentHashMap[String,() =&gt; Double]">ConcurrentHashMap</span><span class="delimiter">[</span>String, <span class="delimiter">(</span><span class="delimiter">)</span> =&gt; Double<span class="delimiter">]</span><span class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="keyword">protected</span> <span class="keyword">val</span> <a title="java.util.concurrent.ConcurrentHashMap[String,String]" id="24012">labelMap</a> = <span title="()java.util.concurrent.ConcurrentHashMap[String,String]" class="keyword">new</span> <span title="java.util.concurrent.ConcurrentHashMap[String,String]">ConcurrentHashMap</span><span class="delimiter">[</span>String, String<span class="delimiter">]</span><span class="delimiter">(</span><span class="delimiter">)</span>
+
+  <span class="keyword">private</span> <span class="keyword">val</span> <a title="scala.collection.mutable.ListBuffer[com.twitter.ostrich.stats.StatsListener]" id="24014">listeners</a> = <span title="scala.collection.mutable.ListBuffer[com.twitter.ostrich.stats.StatsListener]" class="keyword">new</span> mutable.<span title="scala.collection.mutable.ListBuffer[com.twitter.ostrich.stats.StatsListener]">ListBuffer</span><span class="delimiter">[</span>StatsListener<span class="delimiter">]</span>
+
+  <span class="comment">/** Set this to true to have the collection fill in a set of automatic gauges from the JVM. */</span>
+  <span class="keyword">var</span> <a title="Boolean" id="24017">includeJvmStats</a> = <span title="Boolean(false)" class="keyword">false</span>
+
+  <span class="comment">/**
+   * Use JMX (shudder) to fill in stats about the JVM into a mutable map.
+   */</span>
+  <span class="keyword">def</span> <a title="(out: scala.collection.mutable.Map[String,Double])Unit" id="24019">fillInJvmGauges</a><span class="delimiter">(</span><a title="scala.collection.mutable.Map[String,Double]" id="45456">out</a>: mutable.<span title="scala.collection.mutable.Map[String,Double]">Map</span><span class="delimiter">[</span>String, Double<span class="delimiter">]</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="java.lang.management.MemoryMXBean" id="45458">mem</a> = <span title="object java.lang.management.ManagementFactory">ManagementFactory</span>.<span title="()java.lang.management.MemoryMXBean">getMemoryMXBean</span><span class="delimiter">(</span><span class="delimiter">)</span>
+
+    <span class="keyword">val</span> <a title="java.lang.management.MemoryUsage" id="45459">heap</a> = <a href="#45458" title="java.lang.management.MemoryMXBean">mem</a>.<span title="()java.lang.management.MemoryUsage">getHeapMemoryUsage</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <a href="#45456" title="(kv: (String, Double))out.type">out</a> += <span class="delimiter">(</span><span title="(y: Double)(java.lang.String, Double)" class="string">&quot;jvm_heap_committed&quot;</span> -&gt; <a href="#45459" title="java.lang.management.MemoryUsage">heap</a>.<span title="()Long">getCommitted</span><span title="=&gt; Double" class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <a href="#45456" title="(kv: (String, Double))out.type">out</a> += <span class="delimiter">(</span><span title="(y: Double)(java.lang.String, Double)" class="string">&quot;jvm_heap_max&quot;</span> -&gt; <a href="#45459" title="java.lang.management.MemoryUsage">heap</a>.<span title="()Long">getMax</span><span title="=&gt; Double" class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <a href="#45456" title="(kv: (String, Double))out.type">out</a> += <span class="delimiter">(</span><span title="(y: Double)(java.lang.String, Double)" class="string">&quot;jvm_heap_used&quot;</span> -&gt; <a href="#45459" title="java.lang.management.MemoryUsage">heap</a>.<span title="()Long">getUsed</span><span title="=&gt; Double" class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+
+    <span class="keyword">val</span> <a title="java.lang.management.MemoryUsage" id="45460">nonheap</a> = <a href="#45458" title="java.lang.management.MemoryMXBean">mem</a>.<span title="()java.lang.management.MemoryUsage">getNonHeapMemoryUsage</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <a href="#45456" title="(kv: (String, Double))out.type">out</a> += <span class="delimiter">(</span><span title="(y: Double)(java.lang.String, Double)" class="string">&quot;jvm_nonheap_committed&quot;</span> -&gt; <a href="#45460" title="java.lang.management.MemoryUsage">nonheap</a>.<span title="()Long">getCommitted</span><span title="=&gt; Double" class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <a href="#45456" title="(kv: (String, Double))out.type">out</a> += <span class="delimiter">(</span><span title="(y: Double)(java.lang.String, Double)" class="string">&quot;jvm_nonheap_max&quot;</span> -&gt; <a href="#45460" title="java.lang.management.MemoryUsage">nonheap</a>.<span title="()Long">getMax</span><span title="=&gt; Double" class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <a href="#45456" title="(kv: (String, Double))out.type">out</a> += <span class="delimiter">(</span><span title="(y: Double)(java.lang.String, Double)" class="string">&quot;jvm_nonheap_used&quot;</span> -&gt; <a href="#45460" title="java.lang.management.MemoryUsage">nonheap</a>.<span title="()Long">getUsed</span><span title="=&gt; Double" class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+
+    <span class="keyword">val</span> <a title="java.lang.management.ThreadMXBean" id="45461">threads</a> = <span title="object java.lang.management.ManagementFactory">ManagementFactory</span>.<span title="()java.lang.management.ThreadMXBean">getThreadMXBean</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <a href="#45456" title="(kv: (String, Double))out.type">out</a> += <span class="delimiter">(</span><span title="(y: Double)(java.lang.String, Double)" class="string">&quot;jvm_thread_daemon_count&quot;</span> -&gt; <a href="#45461" title="java.lang.management.ThreadMXBean">threads</a>.<span title="()Int">getDaemonThreadCount</span><span class="delimiter">(</span><span class="delimiter">)</span>.<span title="=&gt; Double">toLong</span><span class="delimiter">)</span>
+    <a href="#45456" title="(kv: (String, Double))out.type">out</a> += <span class="delimiter">(</span><span title="(y: Double)(java.lang.String, Double)" class="string">&quot;jvm_thread_count&quot;</span> -&gt; <a href="#45461" title="java.lang.management.ThreadMXBean">threads</a>.<span title="()Int">getThreadCount</span><span class="delimiter">(</span><span class="delimiter">)</span>.<span title="=&gt; Double">toLong</span><span class="delimiter">)</span>
+    <a href="#45456" title="(kv: (String, Double))out.type">out</a> += <span class="delimiter">(</span><span title="(y: Double)(java.lang.String, Double)" class="string">&quot;jvm_thread_peak_count&quot;</span> -&gt; <a href="#45461" title="java.lang.management.ThreadMXBean">threads</a>.<span title="()Int">getPeakThreadCount</span><span class="delimiter">(</span><span class="delimiter">)</span>.<span title="=&gt; Double">toLong</span><span class="delimiter">)</span>
+
+    <span class="keyword">val</span> <a title="java.lang.management.RuntimeMXBean" id="45462">runtime</a> = <span title="object java.lang.management.ManagementFactory">ManagementFactory</span>.<span title="()java.lang.management.RuntimeMXBean">getRuntimeMXBean</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <a href="#45456" title="(kv: (String, Double))out.type">out</a> += <span class="delimiter">(</span><span title="(y: Double)(java.lang.String, Double)" class="string">&quot;jvm_start_time&quot;</span> -&gt; <a href="#45462" title="java.lang.management.RuntimeMXBean">runtime</a>.<span title="()Long">getStartTime</span><span title="=&gt; Double" class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <a href="#45456" title="(kv: (String, Double))out.type">out</a> += <span class="delimiter">(</span><span title="(y: Double)(java.lang.String, Double)" class="string">&quot;jvm_uptime&quot;</span> -&gt; <a href="#45462" title="java.lang.management.RuntimeMXBean">runtime</a>.<span title="()Long">getUptime</span><span title="=&gt; Double" class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+
+    <span class="keyword">val</span> <a title="java.lang.management.OperatingSystemMXBean" id="45463">os</a> = <span title="object java.lang.management.ManagementFactory">ManagementFactory</span>.<span title="()java.lang.management.OperatingSystemMXBean">getOperatingSystemMXBean</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <a href="#45456" title="(kv: (String, Double))out.type">out</a> += <span class="delimiter">(</span><span title="(y: Double)(java.lang.String, Double)" class="string">&quot;jvm_num_cpus&quot;</span> -&gt; <a href="#45463" title="java.lang.management.OperatingSystemMXBean">os</a>.<span title="()Int">getAvailableProcessors</span><span class="delimiter">(</span><span class="delimiter">)</span>.<span title="=&gt; Double">toLong</span><span class="delimiter">)</span>
+    <a href="#45463" title="java.lang.management.OperatingSystemMXBean">os</a> <span title="Any" class="keyword">match</span> <span class="delimiter">{</span>
+      <span title="out.type" class="keyword">case</span> <a title="com.sun.management.UnixOperatingSystemMXBean" id="45936">unix</a>: com.sun.management.<span title="com.sun.management.UnixOperatingSystemMXBean">UnixOperatingSystemMXBean</span> =&gt;
+        <a href="#45456" title="(kv: (String, Double))out.type">out</a> += <span class="delimiter">(</span><span title="(y: Double)(java.lang.String, Double)" class="string">&quot;jvm_fd_count&quot;</span> -&gt; <a href="#45936" title="com.sun.management.UnixOperatingSystemMXBean">unix</a>.<span title="=&gt; Double">getOpenFileDescriptorCount</span><span class="delimiter">)</span>
+        <a href="#45456" title="(kv: (String, Double))out.type">out</a> += <span class="delimiter">(</span><span title="(y: Double)(java.lang.String, Double)" class="string">&quot;jvm_fd_limit&quot;</span> -&gt; <a href="#45936" title="com.sun.management.UnixOperatingSystemMXBean">unix</a>.<span title="=&gt; Double">getMaxFileDescriptorCount</span><span class="delimiter">)</span>
+      <span title="Unit" class="keyword">case</span> _ =&gt;   <span class="comment">// ew, Windows... or something</span>
+    <span class="delimiter">}</span>
+
+    <span class="keyword">var</span> <a title="Long" id="45464">totalUsage</a> = <span title="Long(0L)" class="long">0L</span>
+    <span title="object java.lang.management.ManagementFactory">ManagementFactory</span>.<span title="()java.util.List[java.lang.management.MemoryPoolMXBean]">getMemoryPoolMXBeans</span><span title="(l: java.util.List[java.lang.management.MemoryPoolMXBean])collection.JavaConverters.AsScala[scala.collection.mutable.Buffer[java.lang.management.MemoryPoolMXBean]]" class="delimiter">(</span><span class="delimiter">)</span>.<span title="=&gt; scala.collection.mutable.Buffer[java.lang.management.MemoryPoolMXBean]">asScala</span>.<span title="(f: (java.lang.management.MemoryPoolMXBean) =&gt; Unit)Unit">foreach</span> <span class="delimiter">{</span> <a title="java.lang.management.MemoryPoolMXBean" id="46238">pool</a> =&gt;
+      <span class="keyword">val</span> <a title="String" id="46239">name</a> = <a href="#46238" title="java.lang.management.MemoryPoolMXBean">pool</a>.<span title="implicit com.twitter.conversions.string.stringToConfiggyString : (s: String)com.twitter.conversions.string.RichString">getName</span>.<span title="(re: scala.util.matching.Regex)(replace: (scala.util.matching.Regex.MatchData) =&gt; String)String">regexSub</span><span class="delimiter">(</span><span title="implicit scala.Predef.augmentString : (x: String)scala.collection.immutable.StringOps" class="string">&quot;&quot;&quot;[^\w]&quot;&quot;&quot;</span>.<span title="=&gt; scala.util.matching.Regex">r</span><span class="delimiter">)</span> <span class="delimiter">{</span> <a title="scala.util.matching.Regex.MatchData" id="46262">m</a> =&gt; <span title="java.lang.String(&quot;_&quot;)" class="string">&quot;_&quot;</span> <span class="delimiter">}</span>
+      <span title="(x: java.lang.management.MemoryUsage)Option[java.lang.management.MemoryUsage]">Option</span><span class="delimiter">(</span><a href="#46238" title="java.lang.management.MemoryPoolMXBean">pool</a>.<span title="()java.lang.management.MemoryUsage">getCollectionUsage</span><span class="delimiter">)</span>.<span title="(f: (java.lang.management.MemoryUsage) =&gt; Unit)Unit">foreach</span> <span class="delimiter">{</span> <a title="java.lang.management.MemoryUsage" id="46273">usage</a> =&gt;
+        <a href="#45456" title="(kv: (String, Double))out.type">out</a> += <span class="delimiter">(</span><span title="(x$1: Any)java.lang.String" class="string">&quot;jvm_post_gc_&quot;</span> <span title="(x$1: Any)java.lang.String">+</span> <a href="#46239" title="String">name</a> <span title="(y: Double)(java.lang.String, Double)">+</span> <span title="java.lang.String(&quot;_used&quot;)" class="string">&quot;_used&quot;</span> -&gt; <a href="#46273" title="java.lang.management.MemoryUsage">usage</a>.<span title="=&gt; Double">getUsed</span><span class="delimiter">)</span>
+        <a href="#45464" title="Long">totalUsage</a> += <a href="#46273" title="java.lang.management.MemoryUsage">usage</a>.<span title="()Long">getUsed</span>
+      <span class="delimiter">}</span>
+    <span class="delimiter">}</span>
+    <a href="#45456" title="(kv: (String, Double))out.type">out</a> <span title="Unit">+=</span> <span class="delimiter">(</span><span title="(y: Double)(java.lang.String, Double)" class="string">&quot;jvm_post_gc_used&quot;</span> -&gt; <a href="#45464" title="=&gt; Double">totalUsage</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="(out: scala.collection.mutable.Map[String,Long])Unit" id="24020">fillInJvmCounters</a><span class="delimiter">(</span><a title="scala.collection.mutable.Map[String,Long]" id="46343">out</a>: mutable.<span title="scala.collection.mutable.Map[String,Long]">Map</span><span class="delimiter">[</span>String, Long<span class="delimiter">]</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <span class="keyword">var</span> <a title="Long" id="46345">totalCycles</a> = <span title="Long(0L)" class="long">0L</span>
+    <span class="keyword">var</span> <a title="Long" id="46346">totalTime</a> = <span title="Long(0L)" class="long">0L</span>
+
+    <span title="object java.lang.management.ManagementFactory">ManagementFactory</span>.<span title="()java.util.List[java.lang.management.GarbageCollectorMXBean]">getGarbageCollectorMXBeans</span><span title="(l: java.util.List[java.lang.management.GarbageCollectorMXBean])collection.JavaConverters.AsScala[scala.collection.mutable.Buffer[java.lang.management.GarbageCollectorMXBean]]" class="delimiter">(</span><span class="delimiter">)</span>.<span title="=&gt; scala.collection.mutable.Buffer[java.lang.management.GarbageCollectorMXBean]">asScala</span>.<span title="(f: (java.lang.management.GarbageCollectorMXBean) =&gt; Unit)Unit">foreach</span> <span class="delimiter">{</span> <a title="java.lang.management.GarbageCollectorMXBean" id="46517">gc</a> =&gt;
+      <span class="keyword">val</span> <a title="String" id="46518">name</a> = <a href="#46517" title="java.lang.management.GarbageCollectorMXBean">gc</a>.<span title="implicit com.twitter.conversions.string.stringToConfiggyString : (s: String)com.twitter.conversions.string.RichString">getName</span>.<span title="(re: scala.util.matching.Regex)(replace: (scala.util.matching.Regex.MatchData) =&gt; String)String">regexSub</span><span class="delimiter">(</span><span title="implicit scala.Predef.augmentString : (x: String)scala.collection.immutable.StringOps" class="string">&quot;&quot;&quot;[^\w]&quot;&quot;&quot;</span>.<span title="=&gt; scala.util.matching.Regex">r</span><span class="delimiter">)</span> <span class="delimiter">{</span> <a title="scala.util.matching.Regex.MatchData" id="46541">m</a> =&gt; <span title="java.lang.String(&quot;_&quot;)" class="string">&quot;_&quot;</span> <span class="delimiter">}</span>
+      <a href="#46343" title="(kv: (String, Long))out.type">out</a> += <span class="delimiter">(</span><span title="(x$1: Any)java.lang.String" class="string">&quot;jvm_gc_&quot;</span> <span title="(x$1: Any)java.lang.String">+</span> <a href="#46518" title="String">name</a> <span title="(y: Long)(java.lang.String, Long)">+</span> <span title="java.lang.String(&quot;_cycles&quot;)" class="string">&quot;_cycles&quot;</span> -&gt; <a href="#46517" title="java.lang.management.GarbageCollectorMXBean">gc</a>.<span title="()Long">getCollectionCount</span><span class="delimiter">)</span>
+      <a href="#46343" title="(kv: (String, Long))out.type">out</a> += <span class="delimiter">(</span><span title="(x$1: Any)java.lang.String" class="string">&quot;jvm_gc_&quot;</span> <span title="(x$1: Any)java.lang.String">+</span> <a href="#46518" title="String">name</a> <span title="(y: Long)(java.lang.String, Long)">+</span> <span title="java.lang.String(&quot;_msec&quot;)" class="string">&quot;_msec&quot;</span> -&gt; <a href="#46517" title="java.lang.management.GarbageCollectorMXBean">gc</a>.<span title="()Long">getCollectionTime</span><span class="delimiter">)</span>
+      <a href="#46345" title="Long">totalCycles</a> += <a href="#46517" title="java.lang.management.GarbageCollectorMXBean">gc</a>.<span title="()Long">getCollectionCount</span>
+      <a href="#46346" title="Long">totalTime</a> += <a href="#46517" title="java.lang.management.GarbageCollectorMXBean">gc</a>.<span title="()Long">getCollectionTime</span>
+    <span class="delimiter">}</span>
+    <a href="#46343" title="(kv: (String, Long))out.type">out</a> += <span class="delimiter">(</span><span title="(y: Long)(java.lang.String, Long)" class="string">&quot;jvm_gc_cycles&quot;</span> -&gt; <a href="#46345" title="Long">totalCycles</a><span class="delimiter">)</span>
+    <a href="#46343" title="(kv: (String, Long))out.type">out</a> <span title="Unit">+=</span> <span class="delimiter">(</span><span title="(y: Long)(java.lang.String, Long)" class="string">&quot;jvm_gc_msec&quot;</span> -&gt; <a href="#46346" title="Long">totalTime</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Attach a new StatsListener to this collection. Additions to metrics will be passed along to
+   * each listener.
+   */</span>
+  <span class="keyword">def</span> <a title="(listener: com.twitter.ostrich.stats.StatsListener)Unit" id="24021">addListener</a><span class="delimiter">(</span><a title="com.twitter.ostrich.stats.StatsListener" id="46681">listener</a>: <a href="StatsListener.scala.html#9377" title="com.twitter.ostrich.stats.StatsListener">StatsListener</a><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#9357" title="(x$1: scala.collection.mutable.ListBuffer[com.twitter.ostrich.stats.StatsListener])scala.collection.mutable.ListBuffer[com.twitter.ostrich.stats.StatsListener]">synchronized</a> <span title="Unit" class="delimiter">{</span>
+      <a href="#24014" title="(x: com.twitter.ostrich.stats.StatsListener)StatsCollection.this.listeners.type">listeners</a> += <a href="#46681" title="com.twitter.ostrich.stats.StatsListener">listener</a>
+    <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="(name: String)(gauge: =&gt; Double)Unit" id="24022">addGauge</a><span class="delimiter">(</span><a title="String" id="46705">name</a>: <span title="String">String</span><span class="delimiter">)</span><span class="delimiter">(</span><a title="=&gt; Double" id="46706">gauge</a>: =&gt; Double<span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#24010" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,() =&gt; Double]">gaugeMap</a>.<span title="(x$1: String,x$2: () =&gt; Double)() =&gt; Double">put</span><span title="Unit" class="delimiter">(</span><a href="#46705" title="String">name</a>, <span class="delimiter">{</span> <span class="delimiter">(</span><span class="delimiter">)</span> =&gt; <a href="#46706" title="=&gt; Double">gauge</a> <span class="delimiter">}</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="(name: String)Unit" id="24023">clearGauge</a><span class="delimiter">(</span><a title="String" id="46719">name</a>: <span title="String">String</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#24010" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,() =&gt; Double]">gaugeMap</a>.<span title="(x$1: Any)() =&gt; Double">remove</span><span title="Unit" class="delimiter">(</span><a href="#46719" title="String">name</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="(name: String,value: String)Unit" id="24024">setLabel</a><span class="delimiter">(</span><a title="String" id="46726">name</a>: <span title="String">String</span>, <a title="String" id="46727">value</a>: <span title="String">String</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#24012" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,String]">labelMap</a>.<span title="(x$1: String,x$2: String)String">put</span><span title="Unit" class="delimiter">(</span><a href="#46726" title="String">name</a>, <a href="#46727" title="String">value</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="(name: String)Unit" id="24025">clearLabel</a><span class="delimiter">(</span><a title="String" id="46739">name</a>: <span title="String">String</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#24012" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,String]">labelMap</a>.<span title="(x$1: Any)String">remove</span><span title="Unit" class="delimiter">(</span><a href="#46739" title="String">name</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="(name: String)com.twitter.ostrich.stats.Counter" id="24026">getCounter</a><span class="delimiter">(</span><a title="String" id="46746">name</a>: <span title="String">String</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <span class="keyword">var</span> <a title="com.twitter.ostrich.stats.Counter" id="46751">counter</a> = <a href="#24006" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,com.twitter.ostrich.stats.Counter]">counterMap</a>.<span title="(x$1: Any)com.twitter.ostrich.stats.Counter">get</span><span class="delimiter">(</span><a href="#46746" title="String">name</a><span class="delimiter">)</span>
+    <span title="Unit" class="keyword">while</span> <span class="delimiter">(</span><a href="#46751" title="(x$1: AnyRef)Boolean">counter</a> == <span title="Null(null)" class="keyword">null</span><span class="delimiter">)</span> <a href="#46752" title="()Unit" class="delimiter">{</a>
+      <a href="#46751" title="com.twitter.ostrich.stats.Counter">counter</a> = <a href="#24006" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,com.twitter.ostrich.stats.Counter]">counterMap</a>.<span title="(x$1: String,x$2: com.twitter.ostrich.stats.Counter)com.twitter.ostrich.stats.Counter">putIfAbsent</span><span class="delimiter">(</span><a href="#46746" title="String">name</a>, <a href="#24028" title="(name: String)com.twitter.ostrich.stats.Counter">newCounter</a><span class="delimiter">(</span><a href="#46746" title="String">name</a><span class="delimiter">)</span><span class="delimiter">)</span>
+      <a href="#46751" title="com.twitter.ostrich.stats.Counter">counter</a> = <a href="#24006" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,com.twitter.ostrich.stats.Counter]">counterMap</a>.<span title="(x$1: Any)com.twitter.ostrich.stats.Counter">get</span><span class="delimiter">(</span><a href="#46746" title="String">name</a><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+    <a href="#46751" title="com.twitter.ostrich.stats.Counter">counter</a>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="(name: String)Unit" id="24027">removeCounter</a><span class="delimiter">(</span><a title="String" id="46772">name</a>: <span title="String">String</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#24006" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,com.twitter.ostrich.stats.Counter]">counterMap</a>.<span title="(x$1: Any)com.twitter.ostrich.stats.Counter">remove</span><span title="Unit" class="delimiter">(</span><a href="#46772" title="String">name</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">protected</span> <span class="keyword">def</span> <a title="(name: String)com.twitter.ostrich.stats.Counter" id="24028">newCounter</a><span class="delimiter">(</span><a title="String" id="46764">name</a>: <span title="String">String</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <span title="com.twitter.ostrich.stats.Counter" class="keyword">new</span> <a href="Counter.scala.html#9305" title="com.twitter.ostrich.stats.Counter">Counter</a><span class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="(name: String)com.twitter.ostrich.stats.Metric" id="24029">getMetric</a><span class="delimiter">(</span><a title="String" id="46777">name</a>: <span title="String">String</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <span class="keyword">var</span> <a title="com.twitter.ostrich.stats.Metric" id="46782">metric</a> = <a href="#24008" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,com.twitter.ostrich.stats.Metric]">metricMap</a>.<span title="(x$1: Any)com.twitter.ostrich.stats.Metric">get</span><span class="delimiter">(</span><a href="#46777" title="String">name</a><span class="delimiter">)</span>
+    <span title="Unit" class="keyword">if</span> <span class="delimiter">(</span><a href="#46782" title="(x$1: AnyRef)Boolean">metric</a> == <span title="Null(null)" class="keyword">null</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+      <a href="#46782" title="com.twitter.ostrich.stats.Metric">metric</a> = <a href="#24008" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,com.twitter.ostrich.stats.Metric]">metricMap</a>.<span title="(x$1: String,x$2: com.twitter.ostrich.stats.Metric)com.twitter.ostrich.stats.Metric">putIfAbsent</span><span class="delimiter">(</span><a href="#46777" title="String">name</a>, <a href="#24030" title="(name: String)com.twitter.ostrich.stats.Metric">newMetric</a><span class="delimiter">(</span><a href="#46777" title="String">name</a><span class="delimiter">)</span><span class="delimiter">)</span>
+      <a href="#46782" title="com.twitter.ostrich.stats.Metric">metric</a> = <a href="#24008" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,com.twitter.ostrich.stats.Metric]">metricMap</a>.<span title="(x$1: Any)com.twitter.ostrich.stats.Metric">get</span><span class="delimiter">(</span><a href="#46777" title="String">name</a><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+    <a href="#46782" title="com.twitter.ostrich.stats.Metric">metric</a>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">protected</span> <span class="keyword">def</span> <a title="(name: String)com.twitter.ostrich.stats.Metric" id="24030">newMetric</a><span class="delimiter">(</span><a title="String" id="46794">name</a>: <span title="String">String</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <span title="com.twitter.ostrich.stats.Metric" class="keyword">new</span> <a href="Metric.scala.html#9340" title="com.twitter.ostrich.stats.Metric">Metric</a><span class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="(name: String)Option[String]" id="24031">getLabel</a><span class="delimiter">(</span><a title="String" id="46801">name</a>: <span title="String">String</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="String" id="46806">value</a> = <a href="#24012" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,String]">labelMap</a>.<span title="(x$1: Any)String">get</span><span class="delimiter">(</span><a href="#46801" title="String">name</a><span class="delimiter">)</span>
+    <span title="Option[String]" class="keyword">if</span> <span class="delimiter">(</span><a href="#46806" title="(x$1: AnyRef)Boolean">value</a> == <span title="Null(null)" class="keyword">null</span><span class="delimiter">)</span> <span title="object None">None</span> <span class="keyword">else</span> <span title="(x: String)Some[String]">Some</span><span class="delimiter">(</span><a href="#46806" title="String">value</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="(name: String)Option[Double]" id="24032">getGauge</a><span class="delimiter">(</span><a title="String" id="46817">name</a>: <span title="String">String</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="() =&gt; Double" id="46822">gauge</a> = <a href="#24010" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,() =&gt; Double]">gaugeMap</a>.<span title="(x$1: Any)() =&gt; Double">get</span><span class="delimiter">(</span><a href="#46817" title="String">name</a><span class="delimiter">)</span>
+    <span title="Option[Double]" class="keyword">if</span> <span class="delimiter">(</span><a href="#46822" title="(x$1: AnyRef)Boolean">gauge</a> == <span title="Null(null)" class="keyword">null</span><span class="delimiter">)</span> <span title="object None">None</span> <span class="keyword">else</span> <span title="(x: Double)Some[Double]">Some</span><span class="delimiter">(</span><a href="#46822" title="()Double">gauge</a><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="()scala.collection.mutable.HashMap[String,Long]" id="24033">getCounters</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="scala.collection.mutable.HashMap[String,Long]" id="46837">counters</a> = <span title="scala.collection.mutable.HashMap[String,Long]" class="keyword">new</span> mutable.<span title="scala.collection.mutable.HashMap[String,Long]">HashMap</span><span class="delimiter">[</span>String, Long<span class="delimiter">]</span>
+    <span title="Unit" class="keyword">if</span> <span class="delimiter">(</span><a href="#24017" title="=&gt; Boolean">includeJvmStats</a><span class="delimiter">)</span> <a href="#24020" title="(out: scala.collection.mutable.Map[String,Long])Unit">fillInJvmCounters</a><span class="delimiter">(</span><a href="#46837" title="scala.collection.mutable.HashMap[String,Long]">counters</a><span class="delimiter">)</span>
+    <span class="keyword">for</span> <span class="delimiter">(</span><span class="delimiter">(</span><a title="String" id="46957">key</a>, <a title="com.twitter.ostrich.stats.Counter" id="46958">counter</a><span class="delimiter">)</span> &lt;- <a href="#24006" title="(m: java.util.concurrent.ConcurrentMap[String,com.twitter.ostrich.stats.Counter])collection.JavaConverters.AsScala[scala.collection.mutable.ConcurrentMap[String,com.twitter.ostrich.stats.Counter]]">counterMap</a>.<a href="#46917" title="(f: ((String, com.twitter.ostrich.stats.Counter)) =&gt; scala.collection.mutable.HashMap[String,Long])Unit">asScala</a><span class="delimiter">)</span> <span class="delimiter">{</span>
+      <a href="#46837" title="(kv: (String, Long))counters.type">counters</a> += <span class="delimiter">(</span><a href="#46957" title="(y: Long)(String, Long)">key</a> -&gt; <a href="Counter.scala.html#39704" title="()Long">counter</a><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+    <a href="#46837" title="scala.collection.mutable.HashMap[String,Long]">counters</a>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="()scala.collection.mutable.HashMap[String,com.twitter.ostrich.stats.Distribution]" id="24034">getMetrics</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="scala.collection.mutable.HashMap[String,com.twitter.ostrich.stats.Distribution]" id="47005">metrics</a> = <span title="scala.collection.mutable.HashMap[String,com.twitter.ostrich.stats.Distribution]" class="keyword">new</span> mutable.<span title="scala.collection.mutable.HashMap[String,com.twitter.ostrich.stats.Distribution]">HashMap</span><span class="delimiter">[</span>String, Distribution<span class="delimiter">]</span>
+    <span class="keyword">for</span> <span class="delimiter">(</span><span class="delimiter">(</span><a title="String" id="47123">key</a>, <a title="com.twitter.ostrich.stats.Metric" id="47124">metric</a><span class="delimiter">)</span> &lt;- <a href="#24008" title="(m: java.util.concurrent.ConcurrentMap[String,com.twitter.ostrich.stats.Metric])collection.JavaConverters.AsScala[scala.collection.mutable.ConcurrentMap[String,com.twitter.ostrich.stats.Metric]]">metricMap</a>.<a href="#47084" title="(f: ((String, com.twitter.ostrich.stats.Metric)) =&gt; scala.collection.mutable.HashMap[String,com.twitter.ostrich.stats.Distribution])Unit">asScala</a><span class="delimiter">)</span> <span class="delimiter">{</span>
+      <a href="#47005" title="(kv: (String, com.twitter.ostrich.stats.Distribution))metrics.type">metrics</a> += <span class="delimiter">(</span><a href="#47123" title="(y: com.twitter.ostrich.stats.Distribution)(String, com.twitter.ostrich.stats.Distribution)">key</a> -&gt; <a href="Metric.scala.html#44531" title="()com.twitter.ostrich.stats.Distribution">metric</a><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+    <a href="#47005" title="scala.collection.mutable.HashMap[String,com.twitter.ostrich.stats.Distribution]">metrics</a>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="()scala.collection.mutable.HashMap[String,Double]" id="24035">getGauges</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="scala.collection.mutable.HashMap[String,Double]" id="47171">gauges</a> = <span title="scala.collection.mutable.HashMap[String,Double]" class="keyword">new</span> mutable.<span title="scala.collection.mutable.HashMap[String,Double]">HashMap</span><span class="delimiter">[</span>String, Double<span class="delimiter">]</span>
+    <span title="Unit" class="keyword">if</span> <span class="delimiter">(</span><a href="#24017" title="=&gt; Boolean">includeJvmStats</a><span class="delimiter">)</span> <a href="#24019" title="(out: scala.collection.mutable.Map[String,Double])Unit">fillInJvmGauges</a><span class="delimiter">(</span><a href="#47171" title="scala.collection.mutable.HashMap[String,Double]">gauges</a><span class="delimiter">)</span>
+    <span class="keyword">for</span> <span class="delimiter">(</span><span class="delimiter">(</span><a title="String" id="47290">key</a>, <a title="() =&gt; Double" id="47291">gauge</a><span class="delimiter">)</span> &lt;- <a href="#24010" title="(m: java.util.concurrent.ConcurrentMap[String,() =&gt; Double])collection.JavaConverters.AsScala[scala.collection.mutable.ConcurrentMap[String,() =&gt; Double]]">gaugeMap</a>.<a href="#47251" title="(f: ((String, () =&gt; Double)) =&gt; scala.collection.mutable.HashMap[String,Double])Unit">asScala</a><span class="delimiter">)</span> <span class="delimiter">{</span>
+      <a href="#47171" title="(kv: (String, Double))gauges.type">gauges</a> += <span class="delimiter">(</span><a href="#47290" title="(y: Double)(String, Double)">key</a> -&gt; <a href="#47291" title="()Double">gauge</a><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+    <a href="#47171" title="scala.collection.mutable.HashMap[String,Double]">gauges</a>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="()scala.collection.mutable.Map[String,String]" id="24036">getLabels</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <span title="(xs: scala.collection.TraversableOnce[(String, String)])scala.collection.mutable.Map[String,String]" class="keyword">new</span> mutable.<span title="scala.collection.mutable.HashMap[String,String]">HashMap</span><span class="delimiter">[</span>String, String<span class="delimiter">]</span> ++ <a href="#24012" title="(m: java.util.concurrent.ConcurrentMap[String,String])collection.JavaConverters.AsScala[scala.collection.mutable.ConcurrentMap[String,String]]">labelMap</a>.<span title="=&gt; scala.collection.mutable.ConcurrentMap[String,String]">asScala</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="()Unit" id="24037">clearAll</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#24006" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,com.twitter.ostrich.stats.Counter]">counterMap</a>.<span title="()Unit">clear</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <a href="#24008" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,com.twitter.ostrich.stats.Metric]">metricMap</a>.<span title="()Unit">clear</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <a href="#24010" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,() =&gt; Double]">gaugeMap</a>.<span title="()Unit">clear</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <a href="#24012" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,String]">labelMap</a>.<span title="()Unit">clear</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <a href="#24014" title="=&gt; scala.collection.mutable.ListBuffer[com.twitter.ostrich.stats.StatsListener]">listeners</a>.<span title="()Unit">clear</span><span class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="()String" id="24038">toJson</a> = <a href="StatsProvider.scala.html#23984" title="()com.twitter.ostrich.stats.StatsSummary">get</a><span class="delimiter">(</span><span class="delimiter">)</span>.<a href="StatsProvider.scala.html#28610" title="=&gt; String">toJson</a>
+<span class="delimiter">}</span>
+
+<span class="comment">/**
+ * Get a StatsCollection specific to this thread.
+ * @deprecated use LocalStatsCollection instead
+ */</span>
+<span class="keyword">object</span> <a title="object com.twitter.ostrich.stats.ThreadLocalStatsCollection" id="9358">ThreadLocalStatsCollection</a> <span title="ScalaObject" class="delimiter">{</span>
+  <span class="keyword">private</span> <span class="keyword">val</span> <a title="java.lang.ThreadLocal[com.twitter.ostrich.stats.StatsCollection]" id="47522">tl</a> = <a href="#47526" title="java.lang.ThreadLocal[com.twitter.ostrich.stats.StatsCollection]" class="keyword">new</a> <a title="anonymous class $anon extends java.lang.ThreadLocal[com.twitter.ostrich.stats.StatsCollection]" id="47526">ThreadLocal</a><span class="delimiter">[</span>StatsCollection<span class="delimiter">]</span><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <span class="keyword">override</span> <span class="keyword">def</span> <a title="()com.twitter.ostrich.stats.StatsCollection" id="47528">initialValue</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span title="com.twitter.ostrich.stats.StatsCollection" class="keyword">new</span> <a href="#9357" title="com.twitter.ostrich.stats.StatsCollection">StatsCollection</a><span class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="()com.twitter.ostrich.stats.StatsCollection" id="47524">apply</a><span class="delimiter">(</span><span class="delimiter">)</span>: <a href="#9357" title="com.twitter.ostrich.stats.StatsCollection">StatsCollection</a> = <a href="#47522" title="=&gt; java.lang.ThreadLocal[com.twitter.ostrich.stats.StatsCollection]">tl</a>.<span title="()com.twitter.ostrich.stats.StatsCollection">get</span><span class="delimiter">(</span><span class="delimiter">)</span>
+<span class="delimiter">}</span>
+
+<span class="comment">/**
+ * A StatsCollection that sends counter and metric updates to a set of other (fanout) collections.
+ */</span>
+<span class="keyword">class</span> <a title="class FanoutStatsCollection extends com.twitter.ostrich.stats.StatsCollection with ScalaObject" id="9360">FanoutStatsCollection</a><span title="ScalaObject" class="delimiter">(</span><a title="com.twitter.ostrich.stats.StatsCollection*" id="47548">others</a>: <span title="com.twitter.ostrich.stats.StatsCollection*">StatsCollection</span>*<span class="delimiter">)</span> <span class="keyword">extends</span> <a href="#9357" title="com.twitter.ostrich.stats.StatsCollection">StatsCollection</a> <span class="delimiter">{</span>
+  <span class="keyword">override</span> <span class="keyword">def</span> <a title="(name: String)com.twitter.ostrich.stats.FanoutCounter" id="47544">newCounter</a><span class="delimiter">(</span><a title="String" id="47550">name</a>: <span title="String">String</span><span class="delimiter">)</span> = <span title="com.twitter.ostrich.stats.FanoutCounter" class="keyword">new</span> <a href="Counter.scala.html#9306" title="com.twitter.ostrich.stats.FanoutCounter">FanoutCounter</a><span class="delimiter">(</span><a href="#47548" title="com.twitter.ostrich.stats.StatsCollection*">others</a>.<span title="(f: (com.twitter.ostrich.stats.StatsCollection) =&gt; com.twitter.ostrich.stats.Counter)(implicit bf: scala.collection.generic.CanBuildFrom[Seq[com.twitter.ostrich.stats.StatsCollection],com.twitter.ostrich.stats.Counter,Seq[com.twitter.ostrich.stats.Counter]])Seq[com.twitter.ostrich.stats.Counter]">map</span> <span title="scala.collection.generic.CanBuildFrom[scala.collection.Seq.Coll,com.twitter.ostrich.stats.Counter,Seq[com.twitter.ostrich.stats.Counter]]" class="delimiter">{</span> <a href="#47565" title="com.twitter.ostrich.stats.StatsCollection">_</a>.<a href="#24026" title="(name: String)com.twitter.ostrich.stats.Counter">getCounter</a><span class="delimiter">(</span><a href="#47550" title="String">name</a><span class="delimiter">)</span> <span class="delimiter">}</span>: _*<span class="delimiter">)</span>
+  <span class="keyword">override</span> <span class="keyword">def</span> <a title="(name: String)com.twitter.ostrich.stats.FanoutMetric" id="47545">newMetric</a><span class="delimiter">(</span><a title="String" id="47629">name</a>: <span title="String">String</span><span class="delimiter">)</span> = <span title="com.twitter.ostrich.stats.FanoutMetric" class="keyword">new</span> <a href="Metric.scala.html#9341" title="com.twitter.ostrich.stats.FanoutMetric">FanoutMetric</a><span class="delimiter">(</span><a href="#47548" title="com.twitter.ostrich.stats.StatsCollection*">others</a>.<span title="(f: (com.twitter.ostrich.stats.StatsCollection) =&gt; com.twitter.ostrich.stats.Metric)(implicit bf: scala.collection.generic.CanBuildFrom[Seq[com.twitter.ostrich.stats.StatsCollection],com.twitter.ostrich.stats.Metric,Seq[com.twitter.ostrich.stats.Metric]])Seq[com.twitter.ostrich.stats.Metric]">map</span> <span title="scala.collection.generic.CanBuildFrom[scala.collection.Seq.Coll,com.twitter.ostrich.stats.Metric,Seq[com.twitter.ostrich.stats.Metric]]" class="delimiter">{</span> <a href="#47640" title="com.twitter.ostrich.stats.StatsCollection">_</a>.<a href="#24029" title="(name: String)com.twitter.ostrich.stats.Metric">getMetric</a><span class="delimiter">(</span><a href="#47629" title="String">name</a><span class="delimiter">)</span> <span class="delimiter">}</span>: _*<span class="delimiter">)</span>
+<span class="delimiter">}</span>
+
+<span class="comment">/**
+ * A StatsCollection that sends counter and metric updates to the global `Stats` object as they
+ * happen, and can be asked to flush its stats back into another StatsCollection with a prefix.
+ *
+ * For example, if the prefix is &quot;transaction10&quot;, then updating a counter &quot;exceptions&quot; will update
+ * this collection and `Stats` simultaneously for &quot;exceptions&quot;. When/if the collection is flushed
+ * into `Stats` at the end of the transaction, &quot;transaction10.exceptions&quot; will be updated with this
+ * collection's &quot;exception&quot; count.
+ */</span>
+<span class="keyword">class</span> <a title="class LocalStatsCollection extends com.twitter.ostrich.stats.FanoutStatsCollection with ScalaObject" id="9361">LocalStatsCollection</a><span title="ScalaObject" class="delimiter">(</span><a title="String" id="47707">collectionName</a>: <span title="String">String</span><span class="delimiter">)</span> <span class="keyword">extends</span> <a href="#9360" title="com.twitter.ostrich.stats.FanoutStatsCollection">FanoutStatsCollection</a><span class="delimiter">(</span><a href="Stats.scala.html#9346" title="object com.twitter.ostrich.stats.Stats">Stats</a><span class="delimiter">)</span> <span class="delimiter">{</span>
+  <span class="keyword">import</span> scala.collection.<span title="object scala.collection.JavaConverters">JavaConverters</span>._
+
+  <span class="comment">/**
+   * Flush this collection's counters and metrics into another StatsCollection, with each counter
+   * and metric name prefixed by this collection's name. Counters and metrics in this collection
+   * will be cleared out. This is not an atomic operation.
+   */</span>
+  <span class="keyword">def</span> <a title="(collection: com.twitter.ostrich.stats.StatsProvider)Unit" id="47703">flushInto</a><span class="delimiter">(</span><a title="com.twitter.ostrich.stats.StatsProvider" id="47709">collection</a>: <a href="StatsProvider.scala.html#9390" title="com.twitter.ostrich.stats.StatsProvider">StatsProvider</a><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#24006" title="(m: java.util.concurrent.ConcurrentMap[String,com.twitter.ostrich.stats.Counter])collection.JavaConverters.AsScala[scala.collection.mutable.ConcurrentMap[String,com.twitter.ostrich.stats.Counter]]">counterMap</a>.<span title="=&gt; scala.collection.mutable.ConcurrentMap[String,com.twitter.ostrich.stats.Counter]">asScala</span>.<span title="(f: ((String, com.twitter.ostrich.stats.Counter)) =&gt; Long)Unit">foreach</span> <a href="#47817" title="Long" class="delimiter">{</a> <span title="Long" class="keyword">case</span> <span class="delimiter">(</span><a title="String" id="47820">name</a>, <a title="com.twitter.ostrich.stats.Counter" id="47821">counter</a><span class="delimiter">)</span> =&gt;
+      <a href="#47709" title="com.twitter.ostrich.stats.StatsProvider">collection</a>.<a href="StatsProvider.scala.html#23976" title="(name: String)com.twitter.ostrich.stats.Counter">getCounter</a><span class="delimiter">(</span><a href="#47707" title="(x$1: Any)java.lang.String">collectionName</a> <span title="(x$1: Any)java.lang.String">+</span> <span title="java.lang.String(&quot;.&quot;)" class="string">&quot;.&quot;</span> + <a href="#47820" title="String">name</a><span class="delimiter">)</span>.<a href="Counter.scala.html#39703" title="(n: Int)Long">incr</a><span class="delimiter">(</span><a href="Counter.scala.html#39704" title="()Long">counter</a><span class="delimiter">(</span><span class="delimiter">)</span>.<span title="=&gt; Int">toInt</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+    <a href="#24008" title="(m: java.util.concurrent.ConcurrentMap[String,com.twitter.ostrich.stats.Metric])collection.JavaConverters.AsScala[scala.collection.mutable.ConcurrentMap[String,com.twitter.ostrich.stats.Metric]]">metricMap</a>.<span title="=&gt; scala.collection.mutable.ConcurrentMap[String,com.twitter.ostrich.stats.Metric]">asScala</span>.<span title="(f: ((String, com.twitter.ostrich.stats.Metric)) =&gt; Long)Unit">foreach</span> <a href="#47937" title="Long" class="delimiter">{</a> <span title="Long" class="keyword">case</span> <span class="delimiter">(</span><a title="String" id="47940">name</a>, <a title="com.twitter.ostrich.stats.Metric" id="47941">metric</a><span class="delimiter">)</span> =&gt;
+      <a href="#47709" title="com.twitter.ostrich.stats.StatsProvider">collection</a>.<a href="StatsProvider.scala.html#23977" title="(name: String)com.twitter.ostrich.stats.Metric">getMetric</a><span class="delimiter">(</span><a href="#47707" title="(x$1: Any)java.lang.String">collectionName</a> <span title="(x$1: Any)java.lang.String">+</span> <span title="java.lang.String(&quot;.&quot;)" class="string">&quot;.&quot;</span> + <a href="#47940" title="String">name</a><span class="delimiter">)</span>.<a href="Metric.scala.html#44529" title="(distribution: com.twitter.ostrich.stats.Distribution)Long">add</a><span class="delimiter">(</span><a href="Metric.scala.html#44531" title="()com.twitter.ostrich.stats.Distribution">metric</a><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+    <a href="#24006" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,com.twitter.ostrich.stats.Counter]">counterMap</a>.<span title="()Unit">clear</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <a href="#24008" title="=&gt; java.util.concurrent.ConcurrentHashMap[String,com.twitter.ostrich.stats.Metric]">metricMap</a>.<span title="()Unit">clear</span><span class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Flush this collection's counters and metrics into the global `Stats` object, with each counter
+   * and metric name prefixed by this collection's name.
+   */</span>
+  <span class="keyword">def</span> <a title="()Unit" id="47704">flush</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#47703" title="(collection: com.twitter.ostrich.stats.StatsProvider)Unit">flushInto</a><span class="delimiter">(</span><a href="Stats.scala.html#9346" title="object com.twitter.ostrich.stats.Stats">Stats</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+<span class="comment">/**
+ * Get the StatsCollection for your &quot;local state&quot;.
+ * @see Future, Local (from twitter-util)
+ *
+ * A LocalStatsCollection is associated with a name, which will be used as the prefix when flushing
+ * the local counters and metrics back into the global `Stats`. Because it's stored in a `Local`,
+ * a collection can be looked up several times and return the same object, as long as it's in the
+ * same &quot;flow of execution&quot; (as defined by `Future`).
+ *
+ * Counters and metrics that are updated on a LocalStatsCollection are also updated on the global
+ * `Stats` object, using the same names. When flushed, these counters and metrics are saved into
+ * the global `Stats` with the collection's name as a prefix.
+ */</span>
+<span class="keyword">object</span> <a title="object com.twitter.ostrich.stats.LocalStatsCollection" id="9362">LocalStatsCollection</a> <span title="ScalaObject" class="delimiter">{</span>
+  <span class="keyword">private</span> <span class="keyword">val</span> <a title="com.twitter.util.Local[scala.collection.mutable.Map[String,com.twitter.ostrich.stats.LocalStatsCollection]]" id="47959">local</a> = <span title="com.twitter.util.Local[scala.collection.mutable.Map[String,com.twitter.ostrich.stats.LocalStatsCollection]]" class="keyword">new</span> <span title="com.twitter.util.Local[scala.collection.mutable.Map[String,com.twitter.ostrich.stats.LocalStatsCollection]]">Local</span><span class="delimiter">[</span>mutable.Map<span class="delimiter">[</span>String, LocalStatsCollection<span class="delimiter">]</span><span class="delimiter">]</span><span class="delimiter">(</span><span class="delimiter">)</span>
+  <a href="#47959" title="(value: scala.collection.mutable.Map[String,com.twitter.ostrich.stats.LocalStatsCollection])Unit">local</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span title="scala.collection.mutable.HashMap[String,com.twitter.ostrich.stats.LocalStatsCollection]" class="keyword">new</span> mutable.<span title="scala.collection.mutable.HashMap[String,com.twitter.ostrich.stats.LocalStatsCollection]">HashMap</span><span class="delimiter">[</span>String, LocalStatsCollection<span class="delimiter">]</span><span class="delimiter">(</span><span class="delimiter">)</span>
+
+  <span class="comment">/**
+   * Get a named LocalStatsCollection, creating it if it doesn't already exist.
+   */</span>
+  <span class="keyword">def</span> <a title="(name: String)com.twitter.ostrich.stats.LocalStatsCollection" id="47961">apply</a><span class="delimiter">(</span><a title="String" id="47978">name</a>: <span title="String">String</span><span class="delimiter">)</span>: <a href="#9361" title="com.twitter.ostrich.stats.LocalStatsCollection">LocalStatsCollection</a> = <span class="delimiter">{</span>
+    <a href="#47959" title="()Option[scala.collection.mutable.Map[String,com.twitter.ostrich.stats.LocalStatsCollection]]">local</a><span class="delimiter">(</span><span class="delimiter">)</span>.<span title="=&gt; scala.collection.mutable.Map[String,com.twitter.ostrich.stats.LocalStatsCollection]">get</span>.<span title="(key: String,op: =&gt; com.twitter.ostrich.stats.LocalStatsCollection)com.twitter.ostrich.stats.LocalStatsCollection">getOrElseUpdate</span><span class="delimiter">(</span><a href="#47978" title="String">name</a>, <span title="com.twitter.ostrich.stats.LocalStatsCollection" class="keyword">new</span> <a href="#9361" title="com.twitter.ostrich.stats.LocalStatsCollection">LocalStatsCollection</a><span class="delimiter">(</span><a href="#47978" title="String">name</a><span class="delimiter">)</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+<span class="comment">/**
+ * Coalesce all events (counters, timings, etc.) that happen in this thread within this
+ * transaction, and log them as a single unit at the end. This is useful for logging everything
+ * that happens within an HTTP request/response cycle, or similar.
+ */</span>
+<span class="keyword">trait</span> <a title="trait TransactionalStatsCollection extends java.lang.Object with ScalaObject" id="9364">TransactionalStatsCollection</a> <span title="ScalaObject" class="delimiter">{</span>
+  <span class="keyword">def</span> <a title="[T](f: (com.twitter.ostrich.stats.StatsProvider) =&gt; T)T" id="47986">apply</a><span class="delimiter">[</span><a title="&gt;: Nothing &lt;: Any" id="47988">T</a><span class="delimiter">]</span><span class="delimiter">(</span><a title="(com.twitter.ostrich.stats.StatsProvider) =&gt; T" id="47992">f</a>: StatsProvider =&gt; T<span class="delimiter">)</span>: <a href="#47988" title="T">T</a> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="com.twitter.ostrich.stats.StatsCollection" id="47995">collection</a> = <span title="com.twitter.ostrich.stats.StatsCollection" class="keyword">new</span> <a href="#9357" title="com.twitter.ostrich.stats.StatsCollection">StatsCollection</a><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="keyword">try</span> <span class="delimiter">{</span>
+      <a href="#47992" title="(v1: com.twitter.ostrich.stats.StatsProvider)T">f</a><span class="delimiter">(</span><a href="#47995" title="com.twitter.ostrich.stats.StatsCollection">collection</a><span class="delimiter">)</span>
+    <span class="delimiter">}</span> <span class="keyword">finally</span> <span class="delimiter">{</span>
+      <a href="#47989" title="(summary: com.twitter.ostrich.stats.StatsSummary)Unit">write</a><span class="delimiter">(</span><a href="#47995" title="com.twitter.ostrich.stats.StatsCollection">collection</a>.<a href="StatsProvider.scala.html#23984" title="()com.twitter.ostrich.stats.StatsSummary">get</a><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="(summary: com.twitter.ostrich.stats.StatsSummary)Unit" id="47989">write</a><span class="delimiter">(</span><a title="com.twitter.ostrich.stats.StatsSummary" id="47999">summary</a>: <a href="StatsProvider.scala.html#9387" title="com.twitter.ostrich.stats.StatsSummary">StatsSummary</a><span class="delimiter">)</span>
+<span class="delimiter">}</span>
+
+        </pre>
+    </body>
+</html>

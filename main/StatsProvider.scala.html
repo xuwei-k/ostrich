@@ -1,0 +1,289 @@
+<?xml version="1.0" encoding="utf-8"?>
+			<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=utf-8" ></meta>
+        <title>StatsProvider.scala</title>
+        <script type="text/javascript" src="jquery-all.js"></script>
+        <script type="text/javascript" src="linked.js"></script>
+        <link rel="stylesheet" type="text/css" href="style.css" title="Style"></link>
+    </head>
+    <body>
+        <pre>
+<span class="comment">/*
+ * Copyright 2009 Twitter, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may
+ * not use this file except in compliance with the License. You may obtain
+ * a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</span>
+
+<span class="keyword">package</span> com.twitter.ostrich.stats
+
+<span class="keyword">import</span> scala.util.matching.Regex
+<span class="keyword">import</span> scala.collection.<span class="delimiter">{</span>Map, mutable, immutable<span class="delimiter">}</span>
+<span class="keyword">import</span> com.twitter.json.Json
+<span class="keyword">import</span> com.twitter.util.<span class="delimiter">{</span>Duration, Future, Time<span class="delimiter">}</span>
+<span class="keyword">import</span> com.twitter.logging.Logger
+
+<span class="comment">/**
+ * Immutable summary of counters, metrics, gauges, and labels.
+ */</span>
+case <span class="keyword">class</span> <a title="class StatsSummary extends java.lang.Object with ScalaObject with Product" id="49835">StatsSummary</a><span title="ScalaObject" class="delimiter">(</span>
+  <a title="=&gt; scala.collection.Map[String,Long]" id="48486">counters</a>: <span title="scala.collection.Map[String,Long]">Map</span><span class="delimiter">[</span>String, Long<span class="delimiter">]</span>,
+  <a title="=&gt; scala.collection.Map[String,com.twitter.ostrich.stats.Distribution]" id="48487">metrics</a>: <span title="scala.collection.Map[String,com.twitter.ostrich.stats.Distribution]">Map</span><span class="delimiter">[</span>String, Distribution<span class="delimiter">]</span>,
+  <a title="=&gt; scala.collection.Map[String,Double]" id="48488">gauges</a>: <span title="scala.collection.Map[String,Double]">Map</span><span class="delimiter">[</span>String, Double<span class="delimiter">]</span>,
+  <a title="=&gt; scala.collection.Map[String,String]" id="48489">labels</a>: <span title="scala.collection.Map[String,String]">Map</span><span class="delimiter">[</span>String, String<span class="delimiter">]</span>
+<span class="delimiter">)</span> <span class="delimiter">{</span>
+  <span class="comment">/**
+   * Dump a nested map of the stats in this collection, suitable for json output.
+   */</span>
+  <span class="keyword">def</span> <a title="=&gt; scala.collection.Map[String,Any]" id="28609">toMap</a>: <span title="scala.collection.Map[String,Any]">Map</span><span class="delimiter">[</span>String, Any<span class="delimiter">]</span> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="scala.collection.Map[String,Any]" id="48966">jsonGauges</a> = <span title="[A, B](elems: (A, B)*)scala.collection.Map[A,B]">Map</span><span title="(elems: (String, Any)*)scala.collection.Map[String,Any]" class="delimiter">[</span><span title="String">String</span>, <span title="Any">Any</span><span class="delimiter">]</span><span title="(xs: scala.collection.TraversableOnce[(String, Any)])scala.collection.Map[String,Any]" class="delimiter">(</span><span class="delimiter">)</span> ++ <a href="#48488" title="=&gt; scala.collection.Map[String,Double]">gauges</a>.<span title="(f: ((String, Double)) =&gt; (String, AnyVal))(implicit bf: scala.collection.generic.CanBuildFrom[scala.collection.Map[String,Double],(String, AnyVal),scala.collection.Map[String,AnyVal]])scala.collection.Map[String,AnyVal]">map</span> <a href="#49011" title="(String, AnyVal)" class="delimiter">{</a> <span title="(String, AnyVal)" class="keyword">case</span> <span class="delimiter">(</span><a title="String" id="49014">k</a>, <a title="Double" id="49015">v</a><span class="delimiter">)</span> =&gt;
+      <span title="(String, AnyVal)" class="keyword">if</span> <span class="delimiter">(</span><a href="#49015" title="implicit scala.Predef.double2Double : (x: Double)java.lang.Double">v</a>.<span title="(x$1: Double)Boolean">longValue</span> == <a href="#49015" title="Double">v</a><span class="delimiter">)</span> <span class="delimiter">{</span> <span title="(_1: String,_2: Long)(String, Long)" class="delimiter">(</span><a href="#49014" title="String">k</a>, <a href="#49015" title="implicit scala.Predef.double2Double : (x: Double)java.lang.Double">v</a>.<span title="()Long">longValue</span><span class="delimiter">)</span> <span class="delimiter">}</span> <span class="keyword">else</span> <span class="delimiter">{</span> <span title="(_1: String,_2: Double)(String, Double)" class="delimiter">(</span><a href="#49014" title="String">k</a>, <a href="#49015" title="Double">v</a><span class="delimiter">)</span> <span class="delimiter">}</span>
+    <span class="delimiter">}</span>
+    <span title="(elems: (java.lang.String, scala.collection.Map[String,Any])*)scala.collection.Map[java.lang.String,scala.collection.Map[String,Any]]">Map</span><span class="delimiter">(</span>
+      <span title="(y: scala.collection.Map[String,Long])(java.lang.String, scala.collection.Map[String,Long])" class="string">&quot;counters&quot;</span> -&gt; <a href="#48486" title="=&gt; scala.collection.Map[String,Long]">counters</a>,
+      <span title="(y: scala.collection.Map[String,com.twitter.ostrich.stats.Distribution])(java.lang.String, scala.collection.Map[String,com.twitter.ostrich.stats.Distribution])" class="string">&quot;metrics&quot;</span> -&gt; <a href="#48487" title="=&gt; scala.collection.Map[String,com.twitter.ostrich.stats.Distribution]">metrics</a>,
+      <span title="(y: scala.collection.Map[String,Any])(java.lang.String, scala.collection.Map[String,Any])" class="string">&quot;gauges&quot;</span> -&gt; <a href="#48966" title="scala.collection.Map[String,Any]">jsonGauges</a>,
+      <span title="(y: scala.collection.Map[String,String])(java.lang.String, scala.collection.Map[String,String])" class="string">&quot;labels&quot;</span> -&gt; <a href="#48489" title="=&gt; scala.collection.Map[String,String]">labels</a>
+    <span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Dump a json-encoded map of the stats in this collection.
+   */</span>
+  <span class="keyword">def</span> <a title="=&gt; String" id="28610">toJson</a> = <span class="delimiter">{</span>
+    <span title="object com.twitter.json.Json">Json</span>.<span title="(obj: Any)com.twitter.json.JsonQuoted">build</span><span class="delimiter">(</span><a href="#28609" title="=&gt; scala.collection.Map[String,Any]">toMap</a><span class="delimiter">)</span>.<span title="()String">toString</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="(regex: scala.util.matching.Regex)com.twitter.ostrich.stats.StatsSummary" id="28611">filterOut</a><span class="delimiter">(</span><a title="scala.util.matching.Regex" id="48514">regex</a>: <span title="scala.util.matching.Regex">Regex</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <a href="#49835" title="(counters: scala.collection.Map[String,Long],metrics: scala.collection.Map[String,com.twitter.ostrich.stats.Distribution],gauges: scala.collection.Map[String,Double],labels: scala.collection.Map[String,String])com.twitter.ostrich.stats.StatsSummary">StatsSummary</a><span class="delimiter">(</span>
+      <a href="#48486" title="=&gt; scala.collection.Map[String,Long]">counters</a>.<span title="(p: (String) =&gt; Boolean)scala.collection.Map[String,Long]">filterKeys</span> <span class="delimiter">{</span> <span title="=&gt; Boolean">!</span><a href="#48514" title="scala.util.matching.Regex">regex</a>.<span title="=&gt; java.util.regex.Pattern">pattern</span>.<span title="(x$1: java.lang.CharSequence)java.util.regex.Matcher">matcher</span><span class="delimiter">(</span><a href="#48519" title="String">_</a><span class="delimiter">)</span>.<span title="()Boolean">matches</span> <span class="delimiter">}</span>,
+      <a href="#48487" title="=&gt; scala.collection.Map[String,com.twitter.ostrich.stats.Distribution]">metrics</a>.<span title="(p: (String) =&gt; Boolean)scala.collection.Map[String,com.twitter.ostrich.stats.Distribution]">filterKeys</span> <span class="delimiter">{</span> <span title="=&gt; Boolean">!</span><a href="#48514" title="scala.util.matching.Regex">regex</a>.<span title="=&gt; java.util.regex.Pattern">pattern</span>.<span title="(x$1: java.lang.CharSequence)java.util.regex.Matcher">matcher</span><span class="delimiter">(</span><a href="#48842" title="String">_</a><span class="delimiter">)</span>.<span title="()Boolean">matches</span> <span class="delimiter">}</span>,
+      <a href="#48488" title="=&gt; scala.collection.Map[String,Double]">gauges</a>.<span title="(p: (String) =&gt; Boolean)scala.collection.Map[String,Double]">filterKeys</span> <span class="delimiter">{</span> <span title="=&gt; Boolean">!</span><a href="#48514" title="scala.util.matching.Regex">regex</a>.<span title="=&gt; java.util.regex.Pattern">pattern</span>.<span title="(x$1: java.lang.CharSequence)java.util.regex.Matcher">matcher</span><span class="delimiter">(</span><a href="#48848" title="String">_</a><span class="delimiter">)</span>.<span title="()Boolean">matches</span> <span class="delimiter">}</span>,
+      <a href="#48489" title="=&gt; scala.collection.Map[String,String]">labels</a>.<span title="(p: (String) =&gt; Boolean)scala.collection.Map[String,String]">filterKeys</span> <span class="delimiter">{</span> <span title="=&gt; Boolean">!</span><a href="#48514" title="scala.util.matching.Regex">regex</a>.<span title="=&gt; java.util.regex.Pattern">pattern</span>.<span title="(x$1: java.lang.CharSequence)java.util.regex.Matcher">matcher</span><span class="delimiter">(</span><a href="#48854" title="String">_</a><span class="delimiter">)</span>.<span title="()Boolean">matches</span> <span class="delimiter">}</span>
+    <span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+<span class="comment">/**
+ * Trait for anything that collects counters, timings, and gauges, and can report them in
+ * name/value maps.
+ *
+ * Many helper methods are provided, with default implementations that just call back into the
+ * abstract methods, so a concrete implementation only needs to fill in the abstract methods.
+ *
+ * To recap the README:
+ *
+ * - counter: a value that never decreases (like &quot;exceptions&quot; or &quot;completed_transactions&quot;)
+ * - gauge: a discrete instantaneous value (like &quot;heap_used&quot; or &quot;current_temperature&quot;)
+ * - metric: a distribution (min, max, median, 99th percentile, ...) like &quot;event_timing&quot;
+ * - label: an instantaneous informational string for debugging or status checking
+ */</span>
+<span class="keyword">trait</span> <a title="trait StatsProvider extends java.lang.Object with ScalaObject" id="9390">StatsProvider</a> <span title="ScalaObject" class="delimiter">{</span>
+  <span class="keyword">val</span> <a title="com.twitter.logging.Logger" id="23965">log</a> = <span title="object com.twitter.logging.Logger">Logger</span>.<span title="(name: String)com.twitter.logging.Logger">get</span><span class="delimiter">(</span><a href="#9390" title="()java.lang.Class[_]">getClass</a>.<span title="()java.lang.String">getName</span><span class="delimiter">)</span>
+
+  <span class="comment">/**
+   * Adds a value to a named metric, which tracks min, max, mean, and a histogram.
+   */</span>
+  <span class="keyword">def</span> <a title="(name: String,value: Int)Unit" id="23967">addMetric</a><span class="delimiter">(</span><a title="String" id="49398">name</a>: <span title="String">String</span>, <a title="Int" id="49399">value</a>: <span title="Int">Int</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <span title="Unit" class="keyword">if</span> <span class="delimiter">(</span><a href="#49399" title="(x$1: Int)Boolean">value</a> &gt;= <span title="Int(0)" class="int">0</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+      <a href="#23977" title="(name: String)com.twitter.ostrich.stats.Metric">getMetric</a><span class="delimiter">(</span><a href="#49398" title="String">name</a><span class="delimiter">)</span>.<a href="Metric.scala.html#44528" title="(n: Int)Long">add</a><span title="Unit" class="delimiter">(</span><a href="#49399" title="Int">value</a><span class="delimiter">)</span>
+    <span class="delimiter">}</span> <span class="keyword">else</span> <span class="delimiter">{</span>
+      <a href="#23965" title="=&gt; com.twitter.logging.Logger">log</a>.<span title="(msg: String,items: Any*)Unit">warning</span><span class="delimiter">(</span><span title="java.lang.String(&quot;Tried to add a negative data point: %s&quot;)" class="string">&quot;Tried to add a negative data point: %s&quot;</span>, <a href="#49398" title="String">name</a><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Adds a set of values to a named metric. Effectively the incoming distribution is merged with
+   * the named metric.
+   */</span>
+  <span class="keyword">def</span> <a title="(name: String,distribution: com.twitter.ostrich.stats.Distribution)Unit" id="23968">addMetric</a><span class="delimiter">(</span><a title="String" id="49417">name</a>: <span title="String">String</span>, <a title="com.twitter.ostrich.stats.Distribution" id="49418">distribution</a>: <a href="Distribution.scala.html#9314" title="com.twitter.ostrich.stats.Distribution">Distribution</a><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#23977" title="(name: String)com.twitter.ostrich.stats.Metric">getMetric</a><span class="delimiter">(</span><a href="#49417" title="String">name</a><span class="delimiter">)</span>.<a href="Metric.scala.html#44529" title="(distribution: com.twitter.ostrich.stats.Distribution)Long">add</a><span title="Unit" class="delimiter">(</span><a href="#49418" title="com.twitter.ostrich.stats.Distribution">distribution</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Increments a counter, returning the new value.
+   */</span>
+  <span class="keyword">def</span> <a title="(name: String,count: Int)Long" id="23969">incr</a><span class="delimiter">(</span><a title="String" id="49426">name</a>: <span title="String">String</span>, <a title="Int" id="49427">count</a>: <span title="Int">Int</span><span class="delimiter">)</span>: <span title="Long">Long</span> = <span class="delimiter">{</span>
+    <a href="#23976" title="(name: String)com.twitter.ostrich.stats.Counter">getCounter</a><span class="delimiter">(</span><a href="#49426" title="String">name</a><span class="delimiter">)</span>.<a href="Counter.scala.html#39703" title="(n: Int)Long">incr</a><span class="delimiter">(</span><a href="#49427" title="Int">count</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Increments a counter by one, returning the new value.
+   */</span>
+  <span class="keyword">def</span> <a title="(name: String)Long" id="23970">incr</a><span class="delimiter">(</span><a title="String" id="49433">name</a>: <span title="String">String</span><span class="delimiter">)</span>: <span title="Long">Long</span> = <a href="#23969" title="(name: String,count: Int)Long">incr</a><span class="delimiter">(</span><a href="#49433" title="String">name</a>, <span title="Int(1)" class="int">1</span><span class="delimiter">)</span>
+
+  <span class="comment">/**
+   * Add a gauge function, which is used to sample instantaneous values.
+   */</span>
+  <span class="keyword">def</span> <a title="(name: String)(gauge: =&gt; Double)Unit" id="23971">addGauge</a><span class="delimiter">(</span><a title="String" id="46708">name</a>: <span title="String">String</span><span class="delimiter">)</span><span class="delimiter">(</span><a title="=&gt; Double" id="46709">gauge</a>: =&gt; Double<span class="delimiter">)</span>
+
+  <span class="comment">/**
+   * Set a gauge to a specific value. This overwrites any previous value or function.
+   */</span>
+  <span class="keyword">def</span> <a title="(name: String,value: Double)Unit" id="23972">setGauge</a><span class="delimiter">(</span><a title="String" id="49439">name</a>: <span title="String">String</span>, <a title="Double" id="49440">value</a>: <span title="Double">Double</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#23971" title="(name: String)(gauge: =&gt; Double)Unit">addGauge</a><span class="delimiter">(</span><a href="#49439" title="String">name</a><span class="delimiter">)</span><span class="delimiter">(</span><a href="#49440" title="Double">value</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Remove a gauge from the provided stats.
+   */</span>
+  <span class="keyword">def</span> <a title="(name: String)Unit" id="23973">clearGauge</a><span class="delimiter">(</span><a title="String" id="46721">name</a>: <span title="String">String</span><span class="delimiter">)</span>
+
+  <span class="comment">/**
+   * Set a label to a string.
+   */</span>
+  <span class="keyword">def</span> <a title="(name: String,value: String)Unit" id="23974">setLabel</a><span class="delimiter">(</span><a title="String" id="46729">name</a>: <span title="String">String</span>, <a title="String" id="46730">value</a>: <span title="String">String</span><span class="delimiter">)</span>
+
+  <span class="comment">/**
+   * Clear an existing label.
+   */</span>
+  <span class="keyword">def</span> <a title="(name: String)Unit" id="23975">clearLabel</a><span class="delimiter">(</span><a title="String" id="46741">name</a>: <span title="String">String</span><span class="delimiter">)</span>
+
+  <span class="comment">/**
+   * Get the Counter object representing a named counter.
+   */</span>
+  <span class="keyword">def</span> <a title="(name: String)com.twitter.ostrich.stats.Counter" id="23976">getCounter</a><span class="delimiter">(</span><a title="String" id="46748">name</a>: <span title="String">String</span><span class="delimiter">)</span>: <a href="Counter.scala.html#9305" title="com.twitter.ostrich.stats.Counter">Counter</a>
+
+  <span class="comment">/**
+   * Get the Metric object representing a named metric.
+   */</span>
+  <span class="keyword">def</span> <a title="(name: String)com.twitter.ostrich.stats.Metric" id="23977">getMetric</a><span class="delimiter">(</span><a title="String" id="46779">name</a>: <span title="String">String</span><span class="delimiter">)</span>: <a href="Metric.scala.html#9340" title="com.twitter.ostrich.stats.Metric">Metric</a>
+
+  <span class="comment">/**
+   * Get the current value of a named gauge.
+   */</span>
+  <span class="keyword">def</span> <a title="(name: String)Option[Double]" id="23978">getGauge</a><span class="delimiter">(</span><a title="String" id="46819">name</a>: <span title="String">String</span><span class="delimiter">)</span>: <span title="Option[Double]">Option</span><span class="delimiter">[</span>Double<span class="delimiter">]</span>
+
+  <span class="comment">/**
+   * Get the current value of a named label, if it exists.
+   */</span>
+  <span class="keyword">def</span> <a title="(name: String)Option[String]" id="23979">getLabel</a><span class="delimiter">(</span><a title="String" id="46803">name</a>: <span title="String">String</span><span class="delimiter">)</span>: <span title="Option[String]">Option</span><span class="delimiter">[</span>String<span class="delimiter">]</span>
+
+  <span class="comment">/**
+   * Summarize all the counters in this collection.
+   */</span>
+  <span class="keyword">def</span> <a title="()scala.collection.Map[String,Long]" id="23980">getCounters</a><span class="delimiter">(</span><span class="delimiter">)</span>: <span title="scala.collection.Map[String,Long]">Map</span><span class="delimiter">[</span>String, Long<span class="delimiter">]</span>
+
+  <span class="comment">/**
+   * Summarize all the metrics in this collection.
+   */</span>
+  <span class="keyword">def</span> <a title="()scala.collection.Map[String,com.twitter.ostrich.stats.Distribution]" id="23981">getMetrics</a><span class="delimiter">(</span><span class="delimiter">)</span>: <span title="scala.collection.Map[String,com.twitter.ostrich.stats.Distribution]">Map</span><span class="delimiter">[</span>String, Distribution<span class="delimiter">]</span>
+
+  <span class="comment">/**
+   * Summarize all the gauges in this collection.
+   */</span>
+  <span class="keyword">def</span> <a title="()scala.collection.Map[String,Double]" id="23982">getGauges</a><span class="delimiter">(</span><span class="delimiter">)</span>: <span title="scala.collection.Map[String,Double]">Map</span><span class="delimiter">[</span>String, Double<span class="delimiter">]</span>
+
+  <span class="comment">/**
+   * Summarize all the labels in this collection.
+   */</span>
+  <span class="keyword">def</span> <a title="()scala.collection.Map[String,String]" id="23983">getLabels</a><span class="delimiter">(</span><span class="delimiter">)</span>: <span title="scala.collection.Map[String,String]">Map</span><span class="delimiter">[</span>String, String<span class="delimiter">]</span>
+
+  <span class="comment">/**
+   * Summarize all the counters, metrics, gauges, and labels in this collection.
+   */</span>
+  <span class="keyword">def</span> <a title="()com.twitter.ostrich.stats.StatsSummary" id="23984">get</a><span class="delimiter">(</span><span class="delimiter">)</span>: <a href="#49835" title="com.twitter.ostrich.stats.StatsSummary">StatsSummary</a> = <a href="#49835" title="(counters: scala.collection.Map[String,Long],metrics: scala.collection.Map[String,com.twitter.ostrich.stats.Distribution],gauges: scala.collection.Map[String,Double],labels: scala.collection.Map[String,String])com.twitter.ostrich.stats.StatsSummary">StatsSummary</a><span class="delimiter">(</span><a href="#23980" title="()scala.collection.Map[String,Long]">getCounters</a><span class="delimiter">(</span><span class="delimiter">)</span>, <a href="#23981" title="()scala.collection.Map[String,com.twitter.ostrich.stats.Distribution]">getMetrics</a><span class="delimiter">(</span><span class="delimiter">)</span>, <a href="#23982" title="()scala.collection.Map[String,Double]">getGauges</a><span class="delimiter">(</span><span class="delimiter">)</span>, <a href="#23983" title="()scala.collection.Map[String,String]">getLabels</a><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+
+  <span class="comment">/**
+   * Reset all collected stats and erase the history.
+   * Probably only useful for unit tests.
+   */</span>
+  <span class="keyword">def</span> <a title="()Unit" id="23985">clearAll</a><span class="delimiter">(</span><span class="delimiter">)</span>
+
+  <span class="comment">/**
+   * Runs the function f and logs that duration, in milliseconds, with the given name.
+   */</span>
+  <span class="keyword">def</span> <a title="[T](name: String)(f: =&gt; T)T" id="23986">time</a><span class="delimiter">[</span><a title="&gt;: Nothing &lt;: Any" id="23988">T</a><span class="delimiter">]</span><span class="delimiter">(</span><a title="String" id="49449">name</a>: <span title="String">String</span><span class="delimiter">)</span><span class="delimiter">(</span><a title="=&gt; T" id="49450">f</a>: =&gt; T<span class="delimiter">)</span>: <a href="#23988" title="T">T</a> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a href="#49454" title="(T, com.twitter.util.Duration)" class="delimiter">(</a><a href="#49453" title="T" id="49454">rv</a>, <a href="#49453" title="com.twitter.util.Duration" id="49455">duration</a><span class="delimiter">)</span> = <span title="object com.twitter.util.Duration">Duration</span>.<span title="(f: =&gt; T)(T, com.twitter.util.Duration)">inMilliseconds</span><span title="(T, com.twitter.util.Duration) @unchecked" class="delimiter">(</span><a href="#49450" title="=&gt; T">f</a><span class="delimiter">)</span>
+    <a href="#23967" title="(name: String,value: Int)Unit">addMetric</a><span class="delimiter">(</span><a href="#49449" title="(x$1: Any)java.lang.String">name</a> + <span title="java.lang.String(&quot;_msec&quot;)" class="string">&quot;_msec&quot;</span>, <a href="#49455" title="com.twitter.util.Duration">duration</a>.<span title="=&gt; Long">inMilliseconds</span>.<span title="=&gt; Int">toInt</span><span class="delimiter">)</span>
+    <a href="#49454" title="T">rv</a>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Runs the function f and logs that duration until the future is satisfied, in microseconds, with
+   * the given name.
+   */</span>
+  <span class="keyword">def</span> <a title="[T](name: String)(f: com.twitter.util.Future[T])com.twitter.util.Future[T]" id="23989">timeFutureMicros</a><span class="delimiter">[</span><a title="&gt;: Nothing &lt;: Any" id="23991">T</a><span class="delimiter">]</span><span class="delimiter">(</span><a title="String" id="49480">name</a>: <span title="String">String</span><span class="delimiter">)</span><span class="delimiter">(</span><a title="com.twitter.util.Future[T]" id="49481">f</a>: <span title="com.twitter.util.Future[T]">Future</span><span class="delimiter">[</span>T<span class="delimiter">]</span><span class="delimiter">)</span>: <span title="com.twitter.util.Future[T]">Future</span><span class="delimiter">[</span>T<span class="delimiter">]</span> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="com.twitter.util.Time" id="49563">start</a> = <span title="object com.twitter.util.Time">Time</span>.<span title="=&gt; com.twitter.util.Time">now</span>
+    <a href="#49481" title="com.twitter.util.Future[T]">f</a>.<span title="(k: (com.twitter.util.Try[T]) =&gt; Unit)com.twitter.util.Future[T]">respond</span> <span class="delimiter">{</span> <a title="com.twitter.util.Try[T]" id="49640">_</a> =&gt;
+      <a href="#23967" title="(name: String,value: Int)Unit">addMetric</a><span class="delimiter">(</span><a href="#49480" title="(x$1: Any)java.lang.String">name</a> + <span title="java.lang.String(&quot;_usec&quot;)" class="string">&quot;_usec&quot;</span>, <a href="#49563" title="com.twitter.util.Time">start</a>.<span title="=&gt; com.twitter.util.Duration">untilNow</span>.<span title="=&gt; Long">inMicroseconds</span>.<span title="=&gt; Int">toInt</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+    <a href="#49481" title="com.twitter.util.Future[T]">f</a>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Runs the function f and logs that duration until the future is satisfied, in milliseconds, with
+   * the given name.
+   */</span>
+  <span class="keyword">def</span> <a title="[T](name: String)(f: com.twitter.util.Future[T])com.twitter.util.Future[T]" id="23992">timeFutureMillis</a><span class="delimiter">[</span><a title="&gt;: Nothing &lt;: Any" id="23994">T</a><span class="delimiter">]</span><span class="delimiter">(</span><a title="String" id="49649">name</a>: <span title="String">String</span><span class="delimiter">)</span><span class="delimiter">(</span><a title="com.twitter.util.Future[T]" id="49650">f</a>: <span title="com.twitter.util.Future[T]">Future</span><span class="delimiter">[</span>T<span class="delimiter">]</span><span class="delimiter">)</span>: <span title="com.twitter.util.Future[T]">Future</span><span class="delimiter">[</span>T<span class="delimiter">]</span> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="com.twitter.util.Time" id="49653">start</a> = <span title="object com.twitter.util.Time">Time</span>.<span title="=&gt; com.twitter.util.Time">now</span>
+    <a href="#49650" title="com.twitter.util.Future[T]">f</a>.<span title="(k: (com.twitter.util.Try[T]) =&gt; Unit)com.twitter.util.Future[T]">respond</span> <span class="delimiter">{</span> <a title="com.twitter.util.Try[T]" id="49657">_</a> =&gt;
+      <a href="#23967" title="(name: String,value: Int)Unit">addMetric</a><span class="delimiter">(</span><a href="#49649" title="(x$1: Any)java.lang.String">name</a> + <span title="java.lang.String(&quot;_msec&quot;)" class="string">&quot;_msec&quot;</span>, <a href="#49653" title="com.twitter.util.Time">start</a>.<span title="=&gt; com.twitter.util.Duration">untilNow</span>.<span title="=&gt; Long">inMilliseconds</span>.<span title="=&gt; Int">toInt</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+    <a href="#49650" title="com.twitter.util.Future[T]">f</a>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Runs the function f and logs that duration until the future is satisfied, in nanoseconds, with
+   * the given name.
+   */</span>
+  <span class="keyword">def</span> <a title="[T](name: String)(f: com.twitter.util.Future[T])com.twitter.util.Future[T]" id="23995">timeFutureNanos</a><span class="delimiter">[</span><a title="&gt;: Nothing &lt;: Any" id="23997">T</a><span class="delimiter">]</span><span class="delimiter">(</span><a title="String" id="49666">name</a>: <span title="String">String</span><span class="delimiter">)</span><span class="delimiter">(</span><a title="com.twitter.util.Future[T]" id="49667">f</a>: <span title="com.twitter.util.Future[T]">Future</span><span class="delimiter">[</span>T<span class="delimiter">]</span><span class="delimiter">)</span>: <span title="com.twitter.util.Future[T]">Future</span><span class="delimiter">[</span>T<span class="delimiter">]</span> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="com.twitter.util.Time" id="49670">start</a> = <span title="object com.twitter.util.Time">Time</span>.<span title="=&gt; com.twitter.util.Time">now</span>
+    <a href="#49667" title="com.twitter.util.Future[T]">f</a>.<span title="(k: (com.twitter.util.Try[T]) =&gt; Unit)com.twitter.util.Future[T]">respond</span> <span class="delimiter">{</span> <a title="com.twitter.util.Try[T]" id="49674">_</a> =&gt;
+      <a href="#23967" title="(name: String,value: Int)Unit">addMetric</a><span class="delimiter">(</span><a href="#49666" title="(x$1: Any)java.lang.String">name</a> + <span title="java.lang.String(&quot;_nsec&quot;)" class="string">&quot;_nsec&quot;</span>, <a href="#49670" title="com.twitter.util.Time">start</a>.<span title="=&gt; com.twitter.util.Duration">untilNow</span>.<span title="=&gt; Long">inNanoseconds</span>.<span title="=&gt; Int">toInt</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+    <a href="#49667" title="com.twitter.util.Future[T]">f</a>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Runs the function f and logs that duration, in microseconds, with the given name.
+   */</span>
+  <span class="keyword">def</span> <a title="[T](name: String)(f: =&gt; T)T" id="23998">timeMicros</a><span class="delimiter">[</span><a title="&gt;: Nothing &lt;: Any" id="24000">T</a><span class="delimiter">]</span><span class="delimiter">(</span><a title="String" id="49684">name</a>: <span title="String">String</span><span class="delimiter">)</span><span class="delimiter">(</span><a title="=&gt; T" id="49685">f</a>: =&gt; T<span class="delimiter">)</span>: <a href="#24000" title="T">T</a> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a href="#49689" title="(T, com.twitter.util.Duration)" class="delimiter">(</a><a href="#49688" title="T" id="49689">rv</a>, <a href="#49688" title="com.twitter.util.Duration" id="49690">duration</a><span class="delimiter">)</span> = <span title="object com.twitter.util.Duration">Duration</span>.<span title="(f: =&gt; T)(T, com.twitter.util.Duration)">inNanoseconds</span><span title="(T, com.twitter.util.Duration) @unchecked" class="delimiter">(</span><a href="#49685" title="=&gt; T">f</a><span class="delimiter">)</span>
+    <a href="#23967" title="(name: String,value: Int)Unit">addMetric</a><span class="delimiter">(</span><a href="#49684" title="(x$1: Any)java.lang.String">name</a> + <span title="java.lang.String(&quot;_usec&quot;)" class="string">&quot;_usec&quot;</span>, <a href="#49690" title="com.twitter.util.Duration">duration</a>.<span title="=&gt; Long">inMicroseconds</span>.<span title="=&gt; Int">toInt</span><span class="delimiter">)</span>
+    <a href="#49689" title="T">rv</a>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Runs the function f and logs that duration, in nanoseconds, with the given name.
+   */</span>
+  <span class="keyword">def</span> <a title="[T](name: String)(f: =&gt; T)T" id="24001">timeNanos</a><span class="delimiter">[</span><a title="&gt;: Nothing &lt;: Any" id="24003">T</a><span class="delimiter">]</span><span class="delimiter">(</span><a title="String" id="49715">name</a>: <span title="String">String</span><span class="delimiter">)</span><span class="delimiter">(</span><a title="=&gt; T" id="49716">f</a>: =&gt; T<span class="delimiter">)</span>: <a href="#24003" title="T">T</a> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a href="#49720" title="(T, com.twitter.util.Duration)" class="delimiter">(</a><a href="#49719" title="T" id="49720">rv</a>, <a href="#49719" title="com.twitter.util.Duration" id="49721">duration</a><span class="delimiter">)</span> = <span title="object com.twitter.util.Duration">Duration</span>.<span title="(f: =&gt; T)(T, com.twitter.util.Duration)">inNanoseconds</span><span title="(T, com.twitter.util.Duration) @unchecked" class="delimiter">(</span><a href="#49716" title="=&gt; T">f</a><span class="delimiter">)</span>
+    <a href="#23967" title="(name: String,value: Int)Unit">addMetric</a><span class="delimiter">(</span><a href="#49715" title="(x$1: Any)java.lang.String">name</a> + <span title="java.lang.String(&quot;_nsec&quot;)" class="string">&quot;_nsec&quot;</span>, <a href="#49721" title="com.twitter.util.Duration">duration</a>.<span title="=&gt; Long">inNanoseconds</span>.<span title="=&gt; Int">toInt</span><span class="delimiter">)</span>
+    <a href="#49720" title="T">rv</a>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+<span class="comment">/**
+ * A StatsProvider that doesn't actually save or report anything.
+ */</span>
+<span class="keyword">object</span> <a title="object com.twitter.ostrich.stats.DevNullStats" id="9391">DevNullStats</a> <span title="ScalaObject" class="keyword">extends</span> <a href="#9390" title="com.twitter.ostrich.stats.StatsProvider">StatsProvider</a> <span class="delimiter">{</span>
+  <span class="keyword">def</span> <a title="(name: String)(gauge: =&gt; Double)Unit" id="49747">addGauge</a><span class="delimiter">(</span><a title="String" id="49762">name</a>: <span title="String">String</span><span class="delimiter">)</span><span class="delimiter">(</span><a title="=&gt; Double" id="49763">gauge</a>: =&gt; Double<span class="delimiter">)</span> = <span title="Unit" class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="keyword">def</span> <a title="(name: String)Unit" id="49748">clearGauge</a><span class="delimiter">(</span><a title="String" id="49766">name</a>: <span title="String">String</span><span class="delimiter">)</span> = <span title="Unit" class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="keyword">def</span> <a title="(name: String,value: String)Unit" id="49749">setLabel</a><span class="delimiter">(</span><a title="String" id="49769">name</a>: <span title="String">String</span>, <a title="String" id="49770">value</a>: <span title="String">String</span><span class="delimiter">)</span> = <span title="Unit" class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="keyword">def</span> <a title="(name: String)Unit" id="49750">clearLabel</a><span class="delimiter">(</span><a title="String" id="49773">name</a>: <span title="String">String</span><span class="delimiter">)</span> = <span title="Unit" class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="keyword">def</span> <a title="(name: String)com.twitter.ostrich.stats.Counter" id="49751">getCounter</a><span class="delimiter">(</span><a title="String" id="49776">name</a>: <span title="String">String</span><span class="delimiter">)</span> = <span title="com.twitter.ostrich.stats.Counter" class="keyword">new</span> <a href="Counter.scala.html#9305" title="com.twitter.ostrich.stats.Counter">Counter</a><span class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="keyword">def</span> <a title="(name: String)com.twitter.ostrich.stats.Metric" id="49752">getMetric</a><span class="delimiter">(</span><a title="String" id="49780">name</a>: <span title="String">String</span><span class="delimiter">)</span> = <span title="com.twitter.ostrich.stats.Metric" class="keyword">new</span> <a href="Metric.scala.html#9340" title="com.twitter.ostrich.stats.Metric">Metric</a><span class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="keyword">def</span> <a title="(name: String)object None" id="49753">getGauge</a><span class="delimiter">(</span><a title="String" id="49784">name</a>: <span title="String">String</span><span class="delimiter">)</span> = <span title="object None">None</span>
+  <span class="keyword">def</span> <a title="(name: String)object None" id="49754">getLabel</a><span class="delimiter">(</span><a title="String" id="49787">name</a>: <span title="String">String</span><span class="delimiter">)</span> = <span title="object None">None</span>
+  <span class="keyword">def</span> <a title="()scala.collection.immutable.Map[String,Nothing]" id="49755">getCounters</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span title="object scala.collection.Map">Map</span>.<span title="scala.collection.immutable.Map[String,Nothing]">empty</span>
+  <span class="keyword">def</span> <a title="()scala.collection.immutable.Map[String,Nothing]" id="49756">getMetrics</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span title="object scala.collection.Map">Map</span>.<span title="scala.collection.immutable.Map[String,Nothing]">empty</span>
+  <span class="keyword">def</span> <a title="()scala.collection.immutable.Map[String,Nothing]" id="49757">getGauges</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span title="object scala.collection.Map">Map</span>.<span title="scala.collection.immutable.Map[String,Nothing]">empty</span>
+  <span class="keyword">def</span> <a title="()scala.collection.immutable.Map[String,Nothing]" id="49758">getLabels</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span title="object scala.collection.Map">Map</span>.<span title="scala.collection.immutable.Map[String,Nothing]">empty</span>
+  <span class="keyword">def</span> <a title="()Unit" id="49759">clearAll</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span title="Unit" class="delimiter">(</span><span class="delimiter">)</span>
+<span class="delimiter">}</span>
+
+        </pre>
+    </body>
+</html>

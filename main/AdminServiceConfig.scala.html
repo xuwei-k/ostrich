@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+			<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=utf-8" ></meta>
+        <title>AdminServiceConfig.scala</title>
+        <script type="text/javascript" src="jquery-all.js"></script>
+        <script type="text/javascript" src="linked.js"></script>
+        <link rel="stylesheet" type="text/css" href="style.css" title="Style"></link>
+    </head>
+    <body>
+        <pre>
+<span class="comment">/*
+ * Copyright 2010 Twitter, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may
+ * not use this file except in compliance with the License. You may obtain
+ * a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</span>
+
+<span class="keyword">package</span> com.twitter.ostrich
+<span class="keyword">package</span> admin
+<span class="keyword">package</span> config
+
+<span class="keyword">import</span> scala.collection.Map
+<span class="keyword">import</span> scala.collection.mutable
+<span class="keyword">import</span> scala.util.matching.Regex
+<span class="keyword">import</span> com.twitter.conversions.<span title="object com.twitter.conversions.time">time</span>._
+<span class="keyword">import</span> com.twitter.logging.Logger
+<span class="keyword">import</span> com.twitter.util.<span class="delimiter">{</span>Config, Duration<span class="delimiter">}</span>
+<span class="keyword">import</span> stats._
+
+<span class="keyword">abstract</span> <span class="keyword">class</span> <a title="class StatsReporterConfig extends java.lang.Object with com.twitter.util.Config[(com.twitter.ostrich.stats.StatsCollection, com.twitter.ostrich.admin.AdminHttpService) =&gt; com.twitter.ostrich.admin.Service] with ScalaObject" id="9284">StatsReporterConfig</a> <span title="ScalaObject" class="keyword">extends</span> <span title="com.twitter.util.Config[(com.twitter.ostrich.stats.StatsCollection, com.twitter.ostrich.admin.AdminHttpService) =&gt; com.twitter.ostrich.admin.Service]">Config</span><span class="delimiter">[</span><span class="delimiter">(</span>StatsCollection, AdminHttpService<span class="delimiter">)</span> =&gt; Service<span class="delimiter">]</span>
+
+<span class="keyword">class</span> <a title="class JsonStatsLoggerConfig extends com.twitter.ostrich.admin.config.StatsReporterConfig with ScalaObject" id="9285">JsonStatsLoggerConfig</a> <span title="ScalaObject" class="keyword">extends</span> <a href="#9284" title="com.twitter.ostrich.admin.config.StatsReporterConfig">StatsReporterConfig</a> <span class="delimiter">{</span>
+  <span class="keyword">var</span> <a title="String" id="38604">loggerName</a>: <span title="String">String</span> = <span title="java.lang.String(&quot;stats&quot;)" class="string">&quot;stats&quot;</span>
+  <span class="keyword">var</span> <a title="com.twitter.util.Duration" id="38607">period</a>: <span title="com.twitter.util.Duration">Duration</span> = <span title="implicit com.twitter.conversions.time.intToTimeableNumber : (i: Int)com.twitter.conversions.time.RichWholeNumber" class="int">1</span>.<span title="=&gt; com.twitter.util.Duration">minute</span>
+  <span class="keyword">var</span> <a title="Option[String]" id="38610">serviceName</a>: <span title="Option[String]">Option</span><span class="delimiter">[</span>String<span class="delimiter">]</span> = <span title="object None">None</span>
+
+  <span class="keyword">def</span> <a title="()(com.twitter.ostrich.stats.StatsCollection, com.twitter.ostrich.admin.AdminHttpService) =&gt; com.twitter.ostrich.stats.JsonStatsLogger" id="38612">apply</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span class="delimiter">{</span> <span class="delimiter">(</span>collection: <a href="StatsCollection.scala.html#9357" title="com.twitter.ostrich.stats.StatsCollection">StatsCollection</a>, admin: <a href="AdminHttpService.scala.html#9203" title="com.twitter.ostrich.admin.AdminHttpService">AdminHttpService</a><span class="delimiter">)</span> =&gt;
+    <span title="com.twitter.ostrich.stats.JsonStatsLogger" class="keyword">new</span> <a href="JsonStatsLogger.scala.html#9334" title="com.twitter.ostrich.stats.JsonStatsLogger">JsonStatsLogger</a><span class="delimiter">(</span><span title="object com.twitter.logging.Logger">Logger</span>.<span title="(name: String)com.twitter.logging.Logger">get</span><span class="delimiter">(</span><a href="#38604" title="=&gt; String">loggerName</a><span class="delimiter">)</span>, <a href="#38607" title="=&gt; com.twitter.util.Duration">period</a>, <a href="#38610" title="=&gt; Option[String]">serviceName</a>, <a href="#38641" title="com.twitter.ostrich.stats.StatsCollection">collection</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+<span class="keyword">class</span> <a title="class W3CStatsLoggerConfig extends com.twitter.ostrich.admin.config.StatsReporterConfig with ScalaObject" id="9286">W3CStatsLoggerConfig</a> <span title="ScalaObject" class="keyword">extends</span> <a href="#9284" title="com.twitter.ostrich.admin.config.StatsReporterConfig">StatsReporterConfig</a> <span class="delimiter">{</span>
+  <span class="keyword">var</span> <a title="String" id="38680">loggerName</a>: <span title="String">String</span> = <span title="java.lang.String(&quot;w3c&quot;)" class="string">&quot;w3c&quot;</span>
+  <span class="keyword">var</span> <a title="com.twitter.util.Duration" id="38683">period</a>: <span title="com.twitter.util.Duration">Duration</span> = <span title="implicit com.twitter.conversions.time.intToTimeableNumber : (i: Int)com.twitter.conversions.time.RichWholeNumber" class="int">1</span>.<span title="=&gt; com.twitter.util.Duration">minute</span>
+
+  <span class="keyword">def</span> <a title="()(com.twitter.ostrich.stats.StatsCollection, com.twitter.ostrich.admin.AdminHttpService) =&gt; com.twitter.ostrich.stats.W3CStatsLogger" id="38685">apply</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span class="delimiter">{</span> <span class="delimiter">(</span>collection: <a href="StatsCollection.scala.html#9357" title="com.twitter.ostrich.stats.StatsCollection">StatsCollection</a>, admin: <a href="AdminHttpService.scala.html#9203" title="com.twitter.ostrich.admin.AdminHttpService">AdminHttpService</a><span class="delimiter">)</span> =&gt;
+    <span title="com.twitter.ostrich.stats.W3CStatsLogger" class="keyword">new</span> <a href="W3CStatsLogger.scala.html#9412" title="com.twitter.ostrich.stats.W3CStatsLogger">W3CStatsLogger</a><span class="delimiter">(</span><span title="object com.twitter.logging.Logger">Logger</span>.<span title="(name: String)com.twitter.logging.Logger">get</span><span class="delimiter">(</span><a href="#38680" title="=&gt; String">loggerName</a><span class="delimiter">)</span>, <a href="#38683" title="=&gt; com.twitter.util.Duration">period</a>, <a href="#38711" title="com.twitter.ostrich.stats.StatsCollection">collection</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+<span class="keyword">class</span> <a title="class TimeSeriesCollectorConfig extends com.twitter.ostrich.admin.config.StatsReporterConfig with ScalaObject" id="9287">TimeSeriesCollectorConfig</a> <span title="ScalaObject" class="keyword">extends</span> <a href="#9284" title="com.twitter.ostrich.admin.config.StatsReporterConfig">StatsReporterConfig</a> <span class="delimiter">{</span>
+  <span class="keyword">def</span> <a title="()(com.twitter.ostrich.stats.StatsCollection, com.twitter.ostrich.admin.AdminHttpService) =&gt; com.twitter.ostrich.admin.TimeSeriesCollector" id="38744">apply</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span class="delimiter">{</span> <span class="delimiter">(</span>collection: <a href="StatsCollection.scala.html#9357" title="com.twitter.ostrich.stats.StatsCollection">StatsCollection</a>, admin: <a href="AdminHttpService.scala.html#9203" title="com.twitter.ostrich.admin.AdminHttpService">AdminHttpService</a><span class="delimiter">)</span> =&gt;
+    <span class="keyword">val</span> <a title="com.twitter.ostrich.admin.TimeSeriesCollector" id="38752">service</a> = <span title="com.twitter.ostrich.admin.TimeSeriesCollector" class="keyword">new</span> <a href="TimeSeriesCollector.scala.html#9271" title="com.twitter.ostrich.admin.TimeSeriesCollector">TimeSeriesCollector</a><span class="delimiter">(</span><a href="#38750" title="com.twitter.ostrich.stats.StatsCollection">collection</a><span class="delimiter">)</span>
+    <a href="#38752" title="com.twitter.ostrich.admin.TimeSeriesCollector">service</a>.<a href="TimeSeriesCollector.scala.html#33854" title="(service: com.twitter.ostrich.admin.AdminHttpService)Unit">registerWith</a><span class="delimiter">(</span><a href="#38751" title="com.twitter.ostrich.admin.AdminHttpService">admin</a><span class="delimiter">)</span>
+    <a href="#38752" title="com.twitter.ostrich.admin.TimeSeriesCollector">service</a>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+<span class="keyword">class</span> <a title="class StatsConfig extends java.lang.Object with com.twitter.util.Config[(com.twitter.ostrich.admin.AdminHttpService) =&gt; com.twitter.ostrich.stats.StatsCollection] with ScalaObject" id="9288">StatsConfig</a> <span title="ScalaObject" class="keyword">extends</span> <span title="com.twitter.util.Config[(com.twitter.ostrich.admin.AdminHttpService) =&gt; com.twitter.ostrich.stats.StatsCollection]">Config</span><span class="delimiter">[</span>AdminHttpService =&gt; StatsCollection<span class="delimiter">]</span> <span class="delimiter">{</span>
+  <span class="keyword">var</span> <a title="String" id="38759">name</a>: <span title="String">String</span> = <span title="java.lang.String(&quot;&quot;)" class="string">&quot;&quot;</span>
+  <span class="keyword">var</span> <a title="List[com.twitter.ostrich.admin.config.StatsReporterConfig]" id="38762">reporters</a>: <span title="List[com.twitter.ostrich.admin.config.StatsReporterConfig]">List</span><span class="delimiter">[</span>StatsReporterConfig<span class="delimiter">]</span> = <span title="object Nil">Nil</span>
+
+  <span class="keyword">def</span> <a title="()(com.twitter.ostrich.admin.AdminHttpService) =&gt; com.twitter.ostrich.stats.StatsCollection" id="38764">apply</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span class="delimiter">{</span> <span class="delimiter">(</span>admin: <a href="AdminHttpService.scala.html#9203" title="com.twitter.ostrich.admin.AdminHttpService">AdminHttpService</a><span class="delimiter">)</span> =&gt;
+    <span class="keyword">val</span> <a title="com.twitter.ostrich.stats.StatsCollection" id="38773">collection</a> = <a href="Stats.scala.html#9346" title="object com.twitter.ostrich.stats.Stats">Stats</a>.<a href="Stats.scala.html#24097" title="(name: String)com.twitter.ostrich.stats.StatsCollection">make</a><span class="delimiter">(</span><a href="#38759" title="=&gt; String">name</a><span class="delimiter">)</span>
+    <a href="#38762" title="=&gt; List[com.twitter.ostrich.admin.config.StatsReporterConfig]">reporters</a>.<span title="(f: (com.twitter.ostrich.admin.config.StatsReporterConfig) =&gt; Unit)Unit">foreach</span> <span class="delimiter">{</span> <a title="com.twitter.ostrich.admin.config.StatsReporterConfig" id="38798">reporter</a> =&gt;
+      <span class="keyword">val</span> <a title="com.twitter.ostrich.admin.Service" id="38799">process</a> = <a href="#38798" title="()(com.twitter.ostrich.stats.StatsCollection, com.twitter.ostrich.admin.AdminHttpService) =&gt; com.twitter.ostrich.admin.Service">reporter</a><span title="(v1: com.twitter.ostrich.stats.StatsCollection,v2: com.twitter.ostrich.admin.AdminHttpService)com.twitter.ostrich.admin.Service" class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">(</span><a href="#38773" title="com.twitter.ostrich.stats.StatsCollection">collection</a>, <a href="#38772" title="com.twitter.ostrich.admin.AdminHttpService">admin</a><span class="delimiter">)</span>
+      <a href="ServiceTracker.scala.html#9259" title="object com.twitter.ostrich.admin.ServiceTracker">ServiceTracker</a>.<a href="ServiceTracker.scala.html#24622" title="(service: com.twitter.ostrich.admin.Service)Unit">register</a><span class="delimiter">(</span><a href="#38799" title="com.twitter.ostrich.admin.Service">process</a><span class="delimiter">)</span>
+      <a href="#38799" title="com.twitter.ostrich.admin.Service">process</a>.<a href="Service.scala.html#20887" title="()Unit">start</a><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+    <a href="#38773" title="com.twitter.ostrich.stats.StatsCollection">collection</a>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+<span class="keyword">class</span> <a title="class AdminServiceConfig extends java.lang.Object with com.twitter.util.Config[(com.twitter.ostrich.admin.RuntimeEnvironment) =&gt; Option[com.twitter.ostrich.admin.AdminHttpService]] with ScalaObject" id="9289">AdminServiceConfig</a> <span title="ScalaObject" class="keyword">extends</span> <span title="com.twitter.util.Config[(com.twitter.ostrich.admin.RuntimeEnvironment) =&gt; Option[com.twitter.ostrich.admin.AdminHttpService]]">Config</span><span class="delimiter">[</span>RuntimeEnvironment =&gt; Option<span class="delimiter">[</span>AdminHttpService<span class="delimiter">]</span><span class="delimiter">]</span> <span class="delimiter">{</span>
+  <span class="comment">/**
+   * (optional) HTTP port.
+   */</span>
+  <span class="keyword">var</span> <a title="Option[Int]" id="38810">httpPort</a>: <span title="Option[Int]">Option</span><span class="delimiter">[</span>Int<span class="delimiter">]</span> = <span title="object None">None</span>
+
+  <span class="comment">/**
+   * Listen backlog for the HTTP port.
+   */</span>
+  <span class="keyword">var</span> <a title="Int" id="38813">httpBacklog</a>: <span title="Int">Int</span> = <span title="Int(20)" class="int">20</span>
+
+  <span class="comment">/**
+   * List of configurations for stats nodes.
+   * This is where you would define alternate stats collectors, or attach a json or w3c logger.
+   */</span>
+  <span class="keyword">var</span> <a title="List[com.twitter.ostrich.admin.config.StatsConfig]" id="38816">statsNodes</a>: <span title="List[com.twitter.ostrich.admin.config.StatsConfig]">List</span><span class="delimiter">[</span>StatsConfig<span class="delimiter">]</span> = <span title="object Nil">Nil</span>
+
+  <span class="comment">/**
+   * The name of the stats collection to use. The default is &quot;&quot; which is the name for Stats.
+   */</span>
+  <span class="keyword">var</span> <a title="Option[String]" id="38819">statsCollectionName</a>: <span title="Option[String]">Option</span><span class="delimiter">[</span>String<span class="delimiter">]</span> = <span title="object None">None</span>
+
+  <span class="comment">/**
+   * A list of regex patterns to filter out of reported stats when the &quot;filtered&quot; option is given.
+   * This is useful if you know a bunch of stats are being reported that aren't interesting to
+   * graph right now.
+   */</span>
+  <span class="keyword">var</span> <a title="List[scala.util.matching.Regex]" id="38822">statsFilters</a>: <span title="List[scala.util.matching.Regex]">List</span><span class="delimiter">[</span>Regex<span class="delimiter">]</span> = <span title="object Nil">Nil</span>
+
+  <span class="comment">/**
+   * Extra handlers for the admin web interface.
+   * Each key is a path prefix, and each value is the handler to invoke for that path. You can use
+   * this to setup extra functionality for the admin web interface.
+   */</span>
+  <span class="keyword">var</span> <a title="scala.collection.Map[String,com.twitter.ostrich.admin.CustomHttpHandler]" id="38825">extraHandlers</a>: <span title="scala.collection.Map[String,com.twitter.ostrich.admin.CustomHttpHandler]">Map</span><span class="delimiter">[</span>String, CustomHttpHandler<span class="delimiter">]</span> = <span title="scala.collection.mutable.HashMap[String,com.twitter.ostrich.admin.CustomHttpHandler]" class="keyword">new</span> mutable.<span title="scala.collection.mutable.HashMap[String,com.twitter.ostrich.admin.CustomHttpHandler]">HashMap</span><span class="delimiter">[</span>String, CustomHttpHandler<span class="delimiter">]</span>
+
+  <span class="comment">/**
+   * Default LatchedStatsListener intervals
+   */</span>
+  <span class="keyword">var</span> <a title="List[com.twitter.util.Duration]" id="38828">defaultLatchIntervals</a>: <span title="List[com.twitter.util.Duration]">List</span><span class="delimiter">[</span>Duration<span class="delimiter">]</span> = <span title="implicit com.twitter.conversions.time.intToTimeableNumber : (i: Int)com.twitter.conversions.time.RichWholeNumber" class="int">1</span>.<span title="=&gt; com.twitter.util.Duration">minute</span> <a href="#38842" title="com.twitter.util.Duration">::</a> <span title="(x: com.twitter.util.Duration)List[com.twitter.util.Duration]">Nil</span>
+
+  <span class="keyword">def</span> <a title="(collection: com.twitter.ostrich.stats.StatsCollection)List[com.twitter.ostrich.stats.StatsListener]" id="38830">configureStatsListeners</a><span class="delimiter">(</span><a title="com.twitter.ostrich.stats.StatsCollection" id="38867">collection</a>: <a href="StatsCollection.scala.html#9357" title="com.twitter.ostrich.stats.StatsCollection">StatsCollection</a><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <a href="#38828" title="=&gt; List[com.twitter.util.Duration]">defaultLatchIntervals</a>.<span title="(f: (com.twitter.util.Duration) =&gt; com.twitter.ostrich.stats.StatsListener)(implicit bf: scala.collection.generic.CanBuildFrom[List[com.twitter.util.Duration],com.twitter.ostrich.stats.StatsListener,List[com.twitter.ostrich.stats.StatsListener]])List[com.twitter.ostrich.stats.StatsListener]">map</span> <span title="scala.collection.generic.CanBuildFrom[scala.collection.immutable.List.Coll,com.twitter.ostrich.stats.StatsListener,List[com.twitter.ostrich.stats.StatsListener]]" class="delimiter">{</span> <a href="StatsListener.scala.html#28247" title="(period: com.twitter.util.Duration,collection: com.twitter.ostrich.stats.StatsCollection,filters: List[scala.util.matching.Regex])com.twitter.ostrich.stats.StatsListener">StatsListener</a><span class="delimiter">(</span><a href="#38889" title="com.twitter.util.Duration">_</a>, <a href="#38867" title="com.twitter.ostrich.stats.StatsCollection">collection</a>, <a href="#38822" title="=&gt; List[scala.util.matching.Regex]">statsFilters</a><span class="delimiter">)</span> <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="()(com.twitter.ostrich.admin.RuntimeEnvironment) =&gt; Option[com.twitter.ostrich.admin.AdminHttpService]" id="38831">apply</a><span class="delimiter">(</span><span class="delimiter">)</span> = <span class="delimiter">{</span> <span class="delimiter">(</span>runtime: <a href="RuntimeEnvironment.scala.html#9249" title="com.twitter.ostrich.admin.RuntimeEnvironment">RuntimeEnvironment</a><span class="delimiter">)</span> =&gt;
+    <a href="#38830" title="(collection: com.twitter.ostrich.stats.StatsCollection)List[com.twitter.ostrich.stats.StatsListener]">configureStatsListeners</a><span class="delimiter">(</span><a href="Stats.scala.html#9346" title="object com.twitter.ostrich.stats.Stats">Stats</a><span class="delimiter">)</span>
+
+    <span class="comment">// allow the adminPort to be overridden on the command line:</span>
+    <a href="#38810" title="(x$1: Option[Int])Unit">httpPort</a> = <a href="#39141" title="com.twitter.ostrich.admin.RuntimeEnvironment">runtime</a>.<a href="RuntimeEnvironment.scala.html#24044" title="=&gt; Map[String,String]">arguments</a>.<span title="(key: String)Option[String]">get</span><span class="delimiter">(</span><span title="java.lang.String(&quot;adminPort&quot;)" class="string">&quot;adminPort&quot;</span><span class="delimiter">)</span>.<span title="(f: (String) =&gt; Int)Option[Int]">map</span> <span class="delimiter">{</span> <a href="#39149" title="implicit scala.Predef.augmentString : (x: String)scala.collection.immutable.StringOps">_</a>.<span title="=&gt; Int">toInt</span> <span class="delimiter">}</span>.<span title="(alternative: =&gt; Option[Int])Option[Int]">orElse</span><span class="delimiter">(</span><a href="#38810" title="=&gt; Option[Int]">httpPort</a><span class="delimiter">)</span>
+
+    <a href="#38810" title="=&gt; Option[Int]">httpPort</a>.<span title="(f: (Int) =&gt; com.twitter.ostrich.admin.AdminHttpService)Option[com.twitter.ostrich.admin.AdminHttpService]">map</span> <span class="delimiter">{</span> <a title="Int" id="39182">port</a> =&gt;
+      <span class="keyword">val</span> <a title="com.twitter.ostrich.stats.StatsCollection" id="39183">statsCollection</a> = <a href="#38819" title="=&gt; Option[String]">statsCollectionName</a>.<span title="(f: (String) =&gt; com.twitter.ostrich.stats.StatsCollection)Option[com.twitter.ostrich.stats.StatsCollection]">map</span> <span class="delimiter">{</span> <a href="Stats.scala.html#9346" title="object com.twitter.ostrich.stats.Stats">Stats</a>.<a href="Stats.scala.html#24097" title="(name: String)com.twitter.ostrich.stats.StatsCollection">make</a><span class="delimiter">(</span><a href="#39189" title="String">_</a><span class="delimiter">)</span> <span class="delimiter">}</span>.<span title="(default: =&gt; com.twitter.ostrich.stats.StatsCollection)com.twitter.ostrich.stats.StatsCollection">getOrElse</span><span class="delimiter">(</span><a href="Stats.scala.html#9346" title="object com.twitter.ostrich.stats.Stats">Stats</a><span class="delimiter">)</span>
+      <span class="keyword">val</span> <a title="com.twitter.ostrich.admin.AdminHttpService" id="39184">admin</a> = <span title="com.twitter.ostrich.admin.AdminHttpService" class="keyword">new</span> <a href="AdminHttpService.scala.html#9203" title="com.twitter.ostrich.admin.AdminHttpService">AdminHttpService</a><span class="delimiter">(</span><a href="#39182" title="Int">port</a>, <a href="#38813" title="=&gt; Int">httpBacklog</a>, <a href="#39183" title="com.twitter.ostrich.stats.StatsCollection">statsCollection</a>, <a href="#39141" title="com.twitter.ostrich.admin.RuntimeEnvironment">runtime</a><span class="delimiter">)</span>
+      <a href="#38816" title="=&gt; List[com.twitter.ostrich.admin.config.StatsConfig]">statsNodes</a>.<span title="(f: (com.twitter.ostrich.admin.config.StatsConfig) =&gt; com.twitter.ostrich.stats.StatsCollection)(implicit bf: scala.collection.generic.CanBuildFrom[List[com.twitter.ostrich.admin.config.StatsConfig],com.twitter.ostrich.stats.StatsCollection,List[com.twitter.ostrich.stats.StatsCollection]])List[com.twitter.ostrich.stats.StatsCollection]">map</span> <span title="scala.collection.generic.CanBuildFrom[scala.collection.immutable.List.Coll,com.twitter.ostrich.stats.StatsCollection,List[com.twitter.ostrich.stats.StatsCollection]]" class="delimiter">{</span> <a title="com.twitter.ostrich.admin.config.StatsConfig" id="39221">config</a> =&gt;
+        <a href="#38764" title="()(com.twitter.ostrich.admin.AdminHttpService) =&gt; com.twitter.ostrich.stats.StatsCollection">config</a><span title="(v1: com.twitter.ostrich.admin.AdminHttpService)com.twitter.ostrich.stats.StatsCollection" class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">(</span><a href="#39184" title="com.twitter.ostrich.admin.AdminHttpService">admin</a><span class="delimiter">)</span>
+      <span class="delimiter">}</span>.<span title="(f: (com.twitter.ostrich.stats.StatsCollection) =&gt; List[com.twitter.ostrich.stats.StatsListener])Unit">foreach</span><span class="delimiter">(</span><a href="#38830" title="(collection: com.twitter.ostrich.stats.StatsCollection)List[com.twitter.ostrich.stats.StatsListener]">configureStatsListeners</a><span class="delimiter">)</span>
+
+      <a href="#39184" title="com.twitter.ostrich.admin.AdminHttpService">admin</a>.<a href="AdminHttpService.scala.html#23250" title="()Unit">start</a><span class="delimiter">(</span><span class="delimiter">)</span>
+
+      <span class="comment">// handlers can't be added until the admin server is started.</span>
+      <a href="#38825" title="=&gt; scala.collection.Map[String,com.twitter.ostrich.admin.CustomHttpHandler]">extraHandlers</a>.<span title="(f: ((String, com.twitter.ostrich.admin.CustomHttpHandler)) =&gt; com.sun.net.httpserver.HttpContext)Unit">foreach</span> <a href="#39508" title="com.sun.net.httpserver.HttpContext" class="delimiter">{</a> <span title="com.sun.net.httpserver.HttpContext" class="keyword">case</span> <span class="delimiter">(</span><a title="String" id="39511">path</a>, <a title="com.twitter.ostrich.admin.CustomHttpHandler" id="39512">handler</a><span class="delimiter">)</span> =&gt;
+        <a href="#39184" title="com.twitter.ostrich.admin.AdminHttpService">admin</a>.<a href="AdminHttpService.scala.html#23247" title="(path: String,handler: com.sun.net.httpserver.HttpHandler)com.sun.net.httpserver.HttpContext">addContext</a><span class="delimiter">(</span><a href="#39511" title="String">path</a>, <a href="#39512" title="com.twitter.ostrich.admin.CustomHttpHandler">handler</a><span class="delimiter">)</span>
+      <span class="delimiter">}</span>
+      <a href="#39184" title="com.twitter.ostrich.admin.AdminHttpService">admin</a>
+    <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+        </pre>
+    </body>
+</html>

@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="utf-8"?>
+			<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=utf-8" ></meta>
+        <title>RuntimeEnvironment.scala</title>
+        <script type="text/javascript" src="jquery-all.js"></script>
+        <script type="text/javascript" src="linked.js"></script>
+        <link rel="stylesheet" type="text/css" href="style.css" title="Style"></link>
+    </head>
+    <body>
+        <pre>
+<span class="comment">/*
+ * Copyright 2010 Twitter, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may
+ * not use this file except in compliance with the License. You may obtain
+ * a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</span>
+
+<span class="keyword">package</span> com.twitter.ostrich
+<span class="keyword">package</span> admin
+
+<span class="keyword">import</span> java.io.File
+<span class="keyword">import</span> java.util.Properties
+<span class="keyword">import</span> scala.collection.mutable
+<span class="keyword">import</span> com.twitter.conversions.<span title="object com.twitter.conversions.string">string</span>._
+<span class="keyword">import</span> com.twitter.logging.Logger
+<span class="keyword">import</span> com.twitter.util.<span class="delimiter">{</span>Config, Eval<span class="delimiter">}</span>
+
+<span class="keyword">object</span> <a title="object com.twitter.ostrich.admin.RuntimeEnvironment" id="9247">RuntimeEnvironment</a> <span title="ScalaObject" class="delimiter">{</span>
+  <span class="comment">/**
+   * Use the given class to find the `build.properties` file, parse any
+   * command-line arguments, and return the resulting RuntimeEnvironment.
+   */</span>
+  <span class="keyword">def</span> <a title="(obj: AnyRef,args: Array[String])com.twitter.ostrich.admin.RuntimeEnvironment" id="32213">apply</a><span class="delimiter">(</span><a title="AnyRef" id="32217">obj</a>: <span title="AnyRef">AnyRef</span>, <a title="Array[String]" id="32218">args</a>: <span title="Array[String]">Array</span><span class="delimiter">[</span>String<span class="delimiter">]</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="com.twitter.ostrich.admin.RuntimeEnvironment" id="32221">runtime</a> = <span title="com.twitter.ostrich.admin.RuntimeEnvironment" class="keyword">new</span> <a href="#9249" title="com.twitter.ostrich.admin.RuntimeEnvironment">RuntimeEnvironment</a><span class="delimiter">(</span><a href="#32217" title="AnyRef">obj</a><span class="delimiter">)</span>
+    <a href="#32221" title="com.twitter.ostrich.admin.RuntimeEnvironment">runtime</a>.<a href="#24067" title="(args: List[String])Unit">parseArgs</a><span class="delimiter">(</span><a href="#32218" title="(xs: Array[String])scala.collection.mutable.ArrayOps[String]">args</a>.<span title="=&gt; List[String]">toList</span><span class="delimiter">)</span>
+    <a href="#32221" title="com.twitter.ostrich.admin.RuntimeEnvironment">runtime</a>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+<span class="comment">/**
+ * Use information in a local `build.properties` file to determine runtime
+ * environment info like the package name, version, and installation path.
+ * This can be used to automatically load config files from a `config/` path
+ * relative to the executable jar.
+ *
+ * An example of how to generate a `build.properties` file is included in
+ * sbt stanard-project: &lt;http://github.com/twitter/standard-project&gt;
+ *
+ * You have to pass in an object from your package in order to identify the
+ * location of the `build.properties` file.
+ */</span>
+<span class="keyword">class</span> <a title="class RuntimeEnvironment extends java.lang.Object with ScalaObject" id="9249">RuntimeEnvironment</a><span title="ScalaObject" class="delimiter">(</span><a title="AnyRef" id="32214">obj</a>: <span title="AnyRef">AnyRef</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+  <span class="keyword">private</span> <span class="keyword">val</span> <a title="java.util.Properties" id="24042">buildProperties</a> = <span title="java.util.Properties" class="keyword">new</span> <span title="java.util.Properties">Properties</span>
+  <span class="keyword">var</span> <a title="Map[String,String]" id="24045">arguments</a>: <span title="Map[String,String]">Map</span><span class="delimiter">[</span>String, String<span class="delimiter">]</span> = <span title="(elems: (String, Nothing)*)scala.collection.immutable.Map[String,Nothing]">Map</span><span class="delimiter">(</span><span class="delimiter">)</span>
+
+  <span class="keyword">try</span> <span class="delimiter">{</span>
+    <a href="#24042" title="=&gt; java.util.Properties">buildProperties</a>.<span title="(x$1: java.io.InputStream)Unit">load</span><span class="delimiter">(</span><a href="#32214" title="AnyRef">obj</a>.<span title="()java.lang.Class[_]">getClass</span>.<span title="(x$1: java.lang.String)java.net.URL">getResource</span><span class="delimiter">(</span><span title="java.lang.String(&quot;build.properties&quot;)" class="string">&quot;build.properties&quot;</span><span class="delimiter">)</span>.<span title="()java.io.InputStream">openStream</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span> <span class="keyword">catch</span> <span class="delimiter">{</span>
+    <span title="Unit" class="keyword">case</span> _ =&gt;
+  <span class="delimiter">}</span>
+
+  <span class="keyword">val</span> <a title="java.lang.String" id="24047">jarName</a> = <a href="#24042" title="=&gt; java.util.Properties">buildProperties</a>.<span title="(x$1: java.lang.String,x$2: java.lang.String)java.lang.String">getProperty</span><span class="delimiter">(</span><span title="java.lang.String(&quot;name&quot;)" class="string">&quot;name&quot;</span>, <span title="java.lang.String(&quot;unknown&quot;)" class="string">&quot;unknown&quot;</span><span class="delimiter">)</span>
+  <span class="keyword">val</span> <a title="java.lang.String" id="24049">jarVersion</a> = <a href="#24042" title="=&gt; java.util.Properties">buildProperties</a>.<span title="(x$1: java.lang.String,x$2: java.lang.String)java.lang.String">getProperty</span><span class="delimiter">(</span><span title="java.lang.String(&quot;version&quot;)" class="string">&quot;version&quot;</span>, <span title="java.lang.String(&quot;0.0&quot;)" class="string">&quot;0.0&quot;</span><span class="delimiter">)</span>
+  <span class="keyword">val</span> <a title="java.lang.String" id="24051">jarBuild</a> = <a href="#24042" title="=&gt; java.util.Properties">buildProperties</a>.<span title="(x$1: java.lang.String,x$2: java.lang.String)java.lang.String">getProperty</span><span class="delimiter">(</span><span title="java.lang.String(&quot;build_name&quot;)" class="string">&quot;build_name&quot;</span>, <span title="java.lang.String(&quot;unknown&quot;)" class="string">&quot;unknown&quot;</span><span class="delimiter">)</span>
+  <span class="keyword">val</span> <a title="java.lang.String" id="24053">jarBuildRevision</a> = <a href="#24042" title="=&gt; java.util.Properties">buildProperties</a>.<span title="(x$1: java.lang.String,x$2: java.lang.String)java.lang.String">getProperty</span><span class="delimiter">(</span><span title="java.lang.String(&quot;build_revision&quot;)" class="string">&quot;build_revision&quot;</span>, <span title="java.lang.String(&quot;unknown&quot;)" class="string">&quot;unknown&quot;</span><span class="delimiter">)</span>
+  <span class="keyword">val</span> <a title="java.lang.String" id="24055">stageName</a> = <span title="object java.lang.System">System</span>.<span title="(x$1: java.lang.String,x$2: java.lang.String)java.lang.String">getProperty</span><span class="delimiter">(</span><span title="java.lang.String(&quot;stage&quot;)" class="string">&quot;stage&quot;</span>, <span title="java.lang.String(&quot;production&quot;)" class="string">&quot;production&quot;</span><span class="delimiter">)</span>
+
+  <span class="comment">// require standard-project &gt;= 0.12.4:</span>
+  <span class="keyword">val</span> <a title="java.lang.String" id="24057">jarBuildBranchName</a> = <a href="#24042" title="=&gt; java.util.Properties">buildProperties</a>.<span title="(x$1: java.lang.String,x$2: java.lang.String)java.lang.String">getProperty</span><span class="delimiter">(</span><span title="java.lang.String(&quot;build_branch_name&quot;)" class="string">&quot;build_branch_name&quot;</span>, <span title="java.lang.String(&quot;unknown&quot;)" class="string">&quot;unknown&quot;</span><span class="delimiter">)</span>
+  <span class="keyword">val</span> <a title="java.lang.String" id="24059">jarBuildLastFewCommits</a> = <a href="#24042" title="=&gt; java.util.Properties">buildProperties</a>.<span title="(x$1: java.lang.String,x$2: java.lang.String)java.lang.String">getProperty</span><span class="delimiter">(</span><span title="java.lang.String(&quot;build_last_few_commits&quot;)" class="string">&quot;build_last_few_commits&quot;</span>, <span title="java.lang.String(&quot;unknown&quot;)" class="string">&quot;unknown&quot;</span><span class="delimiter">)</span>
+
+  <span class="comment">/**
+   * Return the path this jar was executed from. Depends on the presence of
+   * a valid `build.properties` file. Will return `None` if it couldn't
+   * figure out the environment.
+   */</span>
+  <span class="keyword">lazy</span> <span class="keyword">val</span> <a title="Option[String]" id="24062">jarPath</a>: <span title="Option[String]">Option</span><span class="delimiter">[</span>String<span class="delimiter">]</span> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="Array[java.lang.String]" id="32567">paths</a> = <span title="object java.lang.System">System</span>.<span title="(x$1: java.lang.String)java.lang.String">getProperty</span><span class="delimiter">(</span><span title="java.lang.String(&quot;java.class.path&quot;)" class="string">&quot;java.class.path&quot;</span><span class="delimiter">)</span>.<span title="(x$1: java.lang.String)Array[java.lang.String]">split</span><span class="delimiter">(</span><span title="object java.lang.System">System</span>.<span title="(x$1: java.lang.String)java.lang.String">getProperty</span><span class="delimiter">(</span><span title="java.lang.String(&quot;path.separator&quot;)" class="string">&quot;path.separator&quot;</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <a href="#24063" title="(paths: Seq[String],name: String,version: String)Option[String]">findCandidateJar</a><span class="delimiter">(</span><a href="#32567" title="(xs: Array[java.lang.String])scala.collection.mutable.WrappedArray[java.lang.String]">paths</a>, <a href="#24047" title="=&gt; java.lang.String">jarName</a>, <a href="#24049" title="=&gt; java.lang.String">jarVersion</a><span class="delimiter">)</span>.<span title="(f: (String) =&gt; Option[String])Option[String]">flatMap</span> <span class="delimiter">{</span> <a title="String" id="32625">path</a> =&gt;
+      <span class="keyword">val</span> <a title="java.io.File" id="32626">file</a> = <span title="java.io.File" class="keyword">new</span> <span title="java.io.File">File</span><span class="delimiter">(</span><a href="#32625" title="String">path</a><span class="delimiter">)</span>;
+      <span class="keyword">var</span> <a title="java.io.File" id="32627">parent</a> = <a href="#32626" title="java.io.File">file</a>.<span title="()java.io.File">getParentFile</span>
+      <span title="Unit" class="keyword">if</span> <span class="delimiter">(</span><a href="#32627" title="(x$1: AnyRef)Boolean">parent</a> == <span title="Null(null)" class="keyword">null</span><span class="delimiter">)</span> <a href="#32627" title="java.io.File">parent</a> = <a href="#32626" title="java.io.File">file</a>.<span title="()java.io.File">getAbsoluteFile</span>.<span title="()java.io.File">getParentFile</span>
+      <span title="Option[String]" class="keyword">if</span> <span class="delimiter">(</span><a href="#32627" title="(x$1: AnyRef)Boolean">parent</a> == <span title="Null(null)" class="keyword">null</span><span class="delimiter">)</span> <span title="object None">None</span> <span class="keyword">else</span> <span title="(x: java.lang.String)Some[java.lang.String]">Some</span><span class="delimiter">(</span><a href="#32627" title="java.io.File">parent</a>.<span title="()java.lang.String">getCanonicalPath</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="(paths: Seq[String],name: String,version: String)Option[String]" id="24063">findCandidateJar</a><span class="delimiter">(</span><a title="Seq[String]" id="32577">paths</a>: <span title="Seq[String]">Seq</span><span class="delimiter">[</span>String<span class="delimiter">]</span>, <a title="String" id="32578">name</a>: <span title="String">String</span>, <a title="String" id="32579">version</a>: <span title="String">String</span><span class="delimiter">)</span>: <span title="Option[String]">Option</span><span class="delimiter">[</span>String<span class="delimiter">]</span> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="scala.util.matching.Regex" id="32655">pattern</a> = <span class="delimiter">(</span><span title="(x$1: Any)java.lang.String" class="string">&quot;(.*?)&quot;</span> <span title="(x$1: Any)java.lang.String">+</span> <a href="#32578" title="String">name</a> <span title="(x$1: Any)java.lang.String">+</span> <span title="java.lang.String(&quot;(?:_[\d.]+)?-&quot;)" class="string">&quot;(?:_[\\d.]+)?-&quot;</span> <span title="(x$1: Any)java.lang.String">+</span> <a href="#32579" title="String">version</a> <span title="implicit scala.Predef.augmentString : (x: String)scala.collection.immutable.StringOps">+</span> <span title="java.lang.String(&quot;\.jar$&quot;)" class="string">&quot;\\.jar$&quot;</span><span class="delimiter">)</span>.<span title="=&gt; scala.util.matching.Regex">r</span>
+    <a href="#32577" title="Seq[String]">paths</a>.<span title="(p: (String) =&gt; Boolean)Option[String]">find</span> <span class="delimiter">{</span> <a title="String" id="32675">path</a> =&gt;
+      <a href="#32655" title="scala.util.matching.Regex">pattern</a>.<span title="(source: java.lang.CharSequence)Option[String]">findFirstIn</span><span class="delimiter">(</span><a href="#32675" title="String">path</a><span class="delimiter">)</span>.<span title="=&gt; Boolean">isDefined</span>
+    <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Config file, as determined from this jar's runtime path, possibly
+   * overridden by a command-line option.
+   */</span>
+  <span class="keyword">var</span> <a title="java.io.File" id="24065">configFile</a>: <span title="java.io.File">File</span> = <a href="#24061" title="=&gt; Option[String]">jarPath</a> <span title="java.io.File" class="keyword">match</span> <span class="delimiter">{</span>
+    <span title="java.io.File" class="keyword">case</span> Some<span class="delimiter">(</span><a title="String" id="32679">path</a><span class="delimiter">)</span> =&gt; <span title="java.io.File" class="keyword">new</span> <span title="java.io.File">File</span><span class="delimiter">(</span><a href="#32679" title="(x$1: Any)java.lang.String">path</a> <span title="(x$1: Any)java.lang.String">+</span> <span title="java.lang.String(&quot;/config/&quot;)" class="string">&quot;/config/&quot;</span> <span title="(x$1: Any)java.lang.String">+</span> <a href="#24055" title="=&gt; java.lang.String">stageName</a> + <span title="java.lang.String(&quot;.scala&quot;)" class="string">&quot;.scala&quot;</span><span class="delimiter">)</span>
+    <span title="java.io.File" class="keyword">case</span> <span title="object None">None</span> =&gt; <span title="java.io.File" class="keyword">new</span> <span title="java.io.File">File</span><span class="delimiter">(</span><span title="(x$1: Any)java.lang.String" class="string">&quot;/etc/&quot;</span> <span title="(x$1: Any)java.lang.String">+</span> <a href="#24047" title="=&gt; java.lang.String">jarName</a> + <span title="java.lang.String(&quot;.conf&quot;)" class="string">&quot;.conf&quot;</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="comment">/**
+   * Perform baseline command-line argument parsing.
+   */</span>
+  <span class="keyword">def</span> <a title="(args: List[String])Unit" id="24067">parseArgs</a><span class="delimiter">(</span><a title="List[String]" id="32223">args</a>: <span title="List[String]">List</span><span class="delimiter">[</span>String<span class="delimiter">]</span><span class="delimiter">)</span>: <span title="Unit">Unit</span> = <span class="delimiter">{</span>
+    <a href="#32223" title="List[String]">args</a> <span title="Unit" class="keyword">match</span> <span class="delimiter">{</span>
+      <span title="Unit" class="keyword">case</span> <span title="java.lang.String(&quot;-D&quot;)" class="string">&quot;-D&quot;</span> :: <a title="String" id="32712">arg</a> :: <a title="List[String]" id="32713">xs</a> =&gt;
+        <span class="keyword">val</span> <a title="Array[java.lang.String]" id="32716">split</a> = <a href="#32712" title="String">arg</a>.<span title="(x$1: java.lang.String)Array[java.lang.String]">split</span><span class="delimiter">(</span><span title="java.lang.String(&quot;=&quot;)" class="string">&quot;=&quot;</span><span class="delimiter">)</span>
+        <a href="#24068" title="(arg: String,value: String)Unit">parseSetting</a><span class="delimiter">(</span><a href="#32716" title="(i: Int)java.lang.String">split</a><span class="delimiter">(</span><span title="Int(0)" class="int">0</span><span class="delimiter">)</span>, <a href="#32716" title="(i: Int)java.lang.String">split</a><span class="delimiter">(</span><span title="Int(1)" class="int">1</span><span class="delimiter">)</span><span class="delimiter">)</span>
+        <a href="#24067" title="(args: List[String])Unit">parseArgs</a><span class="delimiter">(</span><a href="#32713" title="List[String]">xs</a><span class="delimiter">)</span>
+      <span title="Unit" class="keyword">case</span> <span title="java.lang.String(&quot;-f&quot;)" class="string">&quot;-f&quot;</span> :: <a title="String" id="32735">filename</a> :: <a title="List[String]" id="32736">xs</a> =&gt;
+        <a href="#24065" title="(x$1: java.io.File)Unit">configFile</a> = <span title="java.io.File" class="keyword">new</span> <span title="java.io.File">File</span><span class="delimiter">(</span><a href="#32735" title="String">filename</a><span class="delimiter">)</span>
+        <a href="#24067" title="(args: List[String])Unit">parseArgs</a><span class="delimiter">(</span><a href="#32736" title="List[String]">xs</a><span class="delimiter">)</span>
+      <span title="Unit" class="keyword">case</span> <span title="java.lang.String(&quot;--help&quot;)" class="string">&quot;--help&quot;</span> :: <a title="List[String]" id="32750">xs</a> =&gt;
+        <a href="#24069" title="()Unit">help</a><span class="delimiter">(</span><span class="delimiter">)</span>
+      <span title="Unit" class="keyword">case</span> <span title="java.lang.String(&quot;--version&quot;)" class="string">&quot;--version&quot;</span> :: <a title="List[String]" id="32758">xs</a> =&gt;
+        <span title="(x: Any)Unit">println</span><span class="delimiter">(</span><span title="implicit scala.Predef.augmentString : (x: String)scala.collection.immutable.StringOps" class="string">&quot;%s %s %s %s&quot;</span>.<span title="(args: Any*)String">format</span><span class="delimiter">(</span><a href="#24047" title="=&gt; java.lang.String">jarName</a>, <a href="#24049" title="=&gt; java.lang.String">jarVersion</a>, <a href="#24051" title="=&gt; java.lang.String">jarBuild</a>, <a href="#24053" title="=&gt; java.lang.String">jarBuildRevision</a><span class="delimiter">)</span><span class="delimiter">)</span>
+        <span title="object java.lang.System">System</span>.<span title="(x$1: Int)Unit">exit</span><span class="delimiter">(</span><span title="Int(0)" class="int">0</span><span class="delimiter">)</span>
+      <span title="Unit" class="keyword">case</span> <span title="java.lang.String(&quot;--validate&quot;)" class="string">&quot;--validate&quot;</span> :: <a title="List[String]" id="32780">xs</a> =&gt;
+        <a href="#24070" title="()Unit">validate</a><span class="delimiter">(</span><span class="delimiter">)</span>
+      <span title="Unit" class="keyword">case</span> <span title="object Nil">Nil</span> =&gt;
+      <span title="Unit" class="keyword">case</span> <a title="String" id="32788">unknown</a> :: _ =&gt;
+        <span title="(x: Any)Unit">println</span><span class="delimiter">(</span><span title="(x$1: Any)java.lang.String" class="string">&quot;Unknown command-line option: &quot;</span> + <a href="#32788" title="String">unknown</a><span class="delimiter">)</span>
+        <a href="#24069" title="()Unit">help</a>
+    <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="(arg: String,value: String)Unit" id="24068">parseSetting</a><span class="delimiter">(</span><a title="String" id="32720">arg</a>: <span title="String">String</span>, <a title="String" id="32721">value</a>: <span title="String">String</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#24045" title="(x$1: Map[String,String])Unit">arguments</a> = <a href="#24045" title="(kv: (String, String))scala.collection.immutable.Map[String,String]">arguments</a> + <span class="delimiter">(</span><a href="#32720" title="(y: String)(String, String)">arg</a> -&gt; <a href="#32721" title="String">value</a><span class="delimiter">)</span>
+    <span title="object java.lang.System">System</span>.<span title="(x$1: java.lang.String,x$2: java.lang.String)java.lang.String">setProperty</span><span title="Unit" class="delimiter">(</span><a href="#32720" title="String">arg</a>, <a href="#32721" title="String">value</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">private</span> <span class="keyword">def</span> <a title="()Unit" id="24069">help</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <span title="()Unit">println</span>
+    <span title="(x: Any)Unit">println</span><span class="delimiter">(</span><span title="implicit scala.Predef.augmentString : (x: String)scala.collection.immutable.StringOps" class="string">&quot;%s %s (%s)&quot;</span>.<span title="(args: Any*)String">format</span><span class="delimiter">(</span><a href="#24047" title="=&gt; java.lang.String">jarName</a>, <a href="#24049" title="=&gt; java.lang.String">jarVersion</a>, <a href="#24051" title="=&gt; java.lang.String">jarBuild</a><span class="delimiter">)</span><span class="delimiter">)</span>
+    <span title="(x: Any)Unit">println</span><span class="delimiter">(</span><span title="java.lang.String(&quot;options:&quot;)" class="string">&quot;options:&quot;</span><span class="delimiter">)</span>
+    <span title="(x: Any)Unit">println</span><span class="delimiter">(</span><span title="java.lang.String(&quot;    -f &lt;path&gt;&quot;)" class="string">&quot;    -f &lt;path&gt;&quot;</span><span class="delimiter">)</span>
+    <span title="(x: Any)Unit">println</span><span class="delimiter">(</span><span title="implicit scala.Predef.augmentString : (x: String)scala.collection.immutable.StringOps" class="string">&quot;        path of config files (default: %s)&quot;</span>.<span title="(args: Any*)String">format</span><span class="delimiter">(</span><a href="#24065" title="=&gt; java.io.File">configFile</a><span class="delimiter">)</span><span class="delimiter">)</span>
+    <span title="(x: Any)Unit">println</span><span class="delimiter">(</span><span title="java.lang.String(&quot;    -D &lt;key&gt;=&lt;value&gt;&quot;)" class="string">&quot;    -D &lt;key&gt;=&lt;value&gt;&quot;</span><span class="delimiter">)</span>
+    <span title="(x: Any)Unit">println</span><span class="delimiter">(</span><span title="java.lang.String(&quot;        set or override an optional setting&quot;)" class="string">&quot;        set or override an optional setting&quot;</span><span class="delimiter">)</span>
+    <span title="(x: Any)Unit">println</span><span class="delimiter">(</span><span title="java.lang.String(&quot;    --version&quot;)" class="string">&quot;    --version&quot;</span><span class="delimiter">)</span>
+    <span title="(x: Any)Unit">println</span><span class="delimiter">(</span><span title="java.lang.String(&quot;        show version information&quot;)" class="string">&quot;        show version information&quot;</span><span class="delimiter">)</span>
+    <span title="(x: Any)Unit">println</span><span class="delimiter">(</span><span title="java.lang.String(&quot;    --validate&quot;)" class="string">&quot;    --validate&quot;</span><span class="delimiter">)</span>
+    <span title="(x: Any)Unit">println</span><span class="delimiter">(</span><span title="java.lang.String(&quot;        validate that the config file will compile&quot;)" class="string">&quot;        validate that the config file will compile&quot;</span><span class="delimiter">)</span>
+    <span title="()Unit">println</span>
+    <span title="object java.lang.System">System</span>.<span title="(x$1: Int)Unit">exit</span><span class="delimiter">(</span><span title="Int(0)" class="int">0</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">private</span> <span class="keyword">def</span> <a title="()Unit" id="24070">validate</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <span class="keyword">try</span> <span class="delimiter">{</span>
+      <span class="keyword">val</span> <a title="com.twitter.util.Eval" id="32965">eval</a> = <span title="com.twitter.util.Eval" class="keyword">new</span> <span title="com.twitter.util.Eval">Eval</span>
+      <span class="keyword">val</span> <a title="com.twitter.util.Config[_]" id="32966">config</a> = <a href="#32965" title="[T](files: java.io.File*)T">eval</a><span title="(files: java.io.File*)com.twitter.util.Config[_]" class="delimiter">[</span><span title="com.twitter.util.Config[_]">Config</span><span class="delimiter">[</span>_<span class="delimiter">]</span><span class="delimiter">]</span><span class="delimiter">(</span><a href="#24065" title="=&gt; java.io.File">configFile</a><span class="delimiter">)</span>
+      <a href="#32966" title="com.twitter.util.Config[_]">config</a>.<span title="()Unit">validate</span><span class="delimiter">(</span><span class="delimiter">)</span>
+      <span title="(x: Any)Unit">println</span><span class="delimiter">(</span><span title="implicit scala.Predef.augmentString : (x: String)scala.collection.immutable.StringOps" class="string">&quot;Config file %s compiles. :)&quot;</span>.<span title="(args: Any*)String">format</span><span class="delimiter">(</span><a href="#24065" title="=&gt; java.io.File">configFile</a><span class="delimiter">)</span><span class="delimiter">)</span>
+      <span title="object java.lang.System">System</span>.<span title="(x$1: Int)Unit">exit</span><span class="delimiter">(</span><span title="Int(0)" class="int">0</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span> <span class="keyword">catch</span> <span class="delimiter">{</span>
+      <span title="Unit" class="keyword">case</span> <a title="com.twitter.util.Eval.CompilerException" id="33286">e</a>: Eval.<span title="com.twitter.util.Eval.CompilerException">CompilerException</span> =&gt;
+        <span title="(x: Any)Unit">println</span><span class="delimiter">(</span><span title="implicit scala.Predef.augmentString : (x: String)scala.collection.immutable.StringOps" class="string">&quot;Error in config file %s:&quot;</span>.<span title="(args: Any*)String">format</span><span class="delimiter">(</span><a href="#24065" title="=&gt; java.io.File">configFile</a><span class="delimiter">)</span><span class="delimiter">)</span>
+        <span title="(x: Any)Unit">println</span><span class="delimiter">(</span><a href="#33286" title="com.twitter.util.Eval.CompilerException">e</a>.<span title="=&gt; List[List[String]]">messages</span>.<span title="(implicit asTraversable: (List[String]) =&gt; Traversable[String])List[String]">flatten</span>.<span title="(sep: String)String">mkString</span><span class="delimiter">(</span><span title="java.lang.String(&quot;\012&quot;)" class="string">&quot;\n&quot;</span><span class="delimiter">)</span><span class="delimiter">)</span>
+        <span title="object java.lang.System">System</span>.<span title="(x$1: Int)Unit">exit</span><span class="delimiter">(</span><span title="Int(1)" class="int">1</span><span class="delimiter">)</span>
+      <span title="Unit" class="keyword">case</span> <a title="com.twitter.util.Config.RequiredValuesMissing" id="33324">e</a>: Config.<span title="com.twitter.util.Config.RequiredValuesMissing">RequiredValuesMissing</span> =&gt;
+        <span title="(x: Any)Unit">println</span><span class="delimiter">(</span><span title="implicit scala.Predef.augmentString : (x: String)scala.collection.immutable.StringOps" class="string">&quot;Required values missing in config file %s:&quot;</span>.<span title="(args: Any*)String">format</span><span class="delimiter">(</span><a href="#24065" title="=&gt; java.io.File">configFile</a><span class="delimiter">)</span><span class="delimiter">)</span>
+        <span title="(x: Any)Unit">println</span><span class="delimiter">(</span><a href="#33324" title="com.twitter.util.Config.RequiredValuesMissing">e</a>.<span title="()java.lang.String">getMessage</span><span class="delimiter">)</span>
+        <span title="object java.lang.System">System</span>.<span title="(x$1: Int)Unit">exit</span><span class="delimiter">(</span><span title="Int(1)" class="int">1</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="[T]()T" id="24071">loadConfig</a><span class="delimiter">[</span><a title="&gt;: Nothing &lt;: Any" id="24073">T</a><span class="delimiter">]</span><span class="delimiter">(</span><span class="delimiter">)</span>: <a href="#24073" title="T">T</a> = <span class="delimiter">{</span>
+    <span class="keyword">try</span> <span class="delimiter">{</span>
+      <span class="keyword">val</span> <a title="com.twitter.util.Eval" id="33346">eval</a> = <span title="com.twitter.util.Eval" class="keyword">new</span> <span title="com.twitter.util.Eval">Eval</span>
+      <span class="keyword">val</span> <a title="com.twitter.util.Config[T]" id="33347">config</a> = <a href="#33346" title="[T](files: java.io.File*)T">eval</a><span title="(files: java.io.File*)com.twitter.util.Config[T]" class="delimiter">[</span><span title="com.twitter.util.Config[T]">Config</span><span class="delimiter">[</span>T<span class="delimiter">]</span><span class="delimiter">]</span><span class="delimiter">(</span><a href="#24065" title="=&gt; java.io.File">configFile</a><span class="delimiter">)</span>
+      <a href="#33347" title="com.twitter.util.Config[T]">config</a>.<span title="()Unit">validate</span><span class="delimiter">(</span><span class="delimiter">)</span>
+      <a href="#33347" title="()T">config</a><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span> <span class="keyword">catch</span> <span class="delimiter">{</span>
+      <span title="Nothing" class="keyword">case</span> <a title="com.twitter.util.Eval.CompilerException" id="33360">e</a>: Eval.<span title="com.twitter.util.Eval.CompilerException">CompilerException</span> =&gt;
+        <span title="object com.twitter.logging.Logger">Logger</span>.<span title="(name: String)com.twitter.logging.Logger">get</span><span class="delimiter">(</span><span title="java.lang.String(&quot;&quot;)" class="string">&quot;&quot;</span><span class="delimiter">)</span>.<span title="(thrown: Throwable,msg: String,items: Any*)Unit">fatal</span><span class="delimiter">(</span><a href="#33360" title="com.twitter.util.Eval.CompilerException">e</a>, <span title="java.lang.String(&quot;Error in config file: %s&quot;)" class="string">&quot;Error in config file: %s&quot;</span>, <a href="#24065" title="=&gt; java.io.File">configFile</a><span class="delimiter">)</span>
+        <span title="object com.twitter.logging.Logger">Logger</span>.<span title="(name: String)com.twitter.logging.Logger">get</span><span class="delimiter">(</span><span title="java.lang.String(&quot;&quot;)" class="string">&quot;&quot;</span><span class="delimiter">)</span>.<span title="(msg: String,items: Any*)Unit">fatal</span><span class="delimiter">(</span><a href="#33360" title="com.twitter.util.Eval.CompilerException">e</a>.<span title="=&gt; List[List[String]]">messages</span>.<span title="(implicit asTraversable: (List[String]) =&gt; Traversable[String])List[String]">flatten</span>.<span title="(sep: String)String">mkString</span><span class="delimiter">(</span><span title="java.lang.String(&quot;\012&quot;)" class="string">&quot;\n&quot;</span><span class="delimiter">)</span><span class="delimiter">)</span>
+        <span title="object java.lang.System">System</span>.<span title="(x$1: Int)Unit">exit</span><span class="delimiter">(</span><span title="Int(1)" class="int">1</span><span class="delimiter">)</span>
+        <span title="Nothing" class="keyword">throw</span> <span title="(x$1: java.lang.String)java.lang.Exception" class="keyword">new</span> <span title="java.lang.Exception">Exception</span><span class="delimiter">(</span><span title="java.lang.String(&quot;which will never execute because of the System.exit above me.&quot;)" class="string">&quot;which will never execute because of the System.exit above me.&quot;</span><span class="delimiter">)</span>
+      <span title="Nothing" class="keyword">case</span> <a title="com.twitter.util.Config.RequiredValuesMissing" id="33399">e</a>: Config.<span title="com.twitter.util.Config.RequiredValuesMissing">RequiredValuesMissing</span> =&gt;
+        <span title="object com.twitter.logging.Logger">Logger</span>.<span title="(name: String)com.twitter.logging.Logger">get</span><span class="delimiter">(</span><span title="java.lang.String(&quot;&quot;)" class="string">&quot;&quot;</span><span class="delimiter">)</span>.<span title="(msg: String,items: Any*)Unit">fatal</span><span class="delimiter">(</span><span title="implicit scala.Predef.augmentString : (x: String)scala.collection.immutable.StringOps" class="string">&quot;Required values missing in config file %s:&quot;</span>.<span title="(args: Any*)String">format</span><span class="delimiter">(</span><a href="#24065" title="=&gt; java.io.File">configFile</a><span class="delimiter">)</span><span class="delimiter">)</span>
+        <span title="object com.twitter.logging.Logger">Logger</span>.<span title="(name: String)com.twitter.logging.Logger">get</span><span class="delimiter">(</span><span title="java.lang.String(&quot;&quot;)" class="string">&quot;&quot;</span><span class="delimiter">)</span>.<span title="(msg: String,items: Any*)Unit">fatal</span><span class="delimiter">(</span><a href="#33399" title="com.twitter.util.Config.RequiredValuesMissing">e</a>.<span title="()java.lang.String">getMessage</span><span class="delimiter">)</span>
+        <span title="object java.lang.System">System</span>.<span title="(x$1: Int)Unit">exit</span><span class="delimiter">(</span><span title="Int(1)" class="int">1</span><span class="delimiter">)</span>
+        <span title="Nothing" class="keyword">throw</span> <span title="(x$1: java.lang.String)java.lang.Exception" class="keyword">new</span> <span title="java.lang.Exception">Exception</span><span class="delimiter">(</span><span title="java.lang.String(&quot;which will never execute because of the System.exit above me.&quot;)" class="string">&quot;which will never execute because of the System.exit above me.&quot;</span><span class="delimiter">)</span>
+      <span title="Nothing" class="keyword">case</span> <a title="java.lang.Throwable" id="33439">e</a> =&gt;
+        <span title="object com.twitter.logging.Logger">Logger</span>.<span title="(name: String)com.twitter.logging.Logger">get</span><span class="delimiter">(</span><span title="java.lang.String(&quot;&quot;)" class="string">&quot;&quot;</span><span class="delimiter">)</span>.<span title="(thrown: Throwable,msg: String,items: Any*)Unit">fatal</span><span class="delimiter">(</span><a href="#33439" title="java.lang.Throwable">e</a>, <span title="java.lang.String(&quot;Error in config file: %s&quot;)" class="string">&quot;Error in config file: %s&quot;</span>, <a href="#24065" title="=&gt; java.io.File">configFile</a><span class="delimiter">)</span>
+        <span title="object java.lang.System">System</span>.<span title="(x$1: Int)Unit">exit</span><span class="delimiter">(</span><span title="Int(1)" class="int">1</span><span class="delimiter">)</span>
+        <span title="Nothing" class="keyword">throw</span> <span title="(x$1: java.lang.String)java.lang.Exception" class="keyword">new</span> <span title="java.lang.Exception">Exception</span><span class="delimiter">(</span><span title="java.lang.String(&quot;which will never execute because of the System.exit above me.&quot;)" class="string">&quot;which will never execute because of the System.exit above me.&quot;</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="[T]()T" id="24074">loadRuntimeConfig</a><span class="delimiter">[</span><a title="&gt;: Nothing &lt;: Any" id="24076">T</a><span class="delimiter">]</span><span class="delimiter">(</span><span class="delimiter">)</span>: <a href="#24076" title="T">T</a> = <span class="delimiter">{</span>
+    <a href="#24071" title="[T]()T">loadConfig</a><span title="()(com.twitter.ostrich.admin.RuntimeEnvironment) =&gt; T" class="delimiter">[</span>RuntimeEnvironment =&gt; T<span class="delimiter">]</span><span title="(v1: com.twitter.ostrich.admin.RuntimeEnvironment)T" class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">(</span><a href="#9249" title="com.twitter.ostrich.admin.RuntimeEnvironment" class="keyword">this</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+        </pre>
+    </body>
+</html>

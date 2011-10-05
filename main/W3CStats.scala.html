@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+			<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=utf-8" ></meta>
+        <title>W3CStats.scala</title>
+        <script type="text/javascript" src="jquery-all.js"></script>
+        <script type="text/javascript" src="linked.js"></script>
+        <link rel="stylesheet" type="text/css" href="style.css" title="Style"></link>
+    </head>
+    <body>
+        <pre>
+<span class="comment">/*
+ * Copyright 2009 Twitter, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may
+ * not use this file except in compliance with the License. You may obtain
+ * a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</span>
+
+<span class="keyword">package</span> com.twitter.ostrich
+<span class="keyword">package</span> stats
+
+<span class="keyword">import</span> java.net.InetAddress
+<span class="keyword">import</span> java.text.SimpleDateFormat
+<span class="keyword">import</span> java.util.<span class="delimiter">{</span>Date, TimeZone<span class="delimiter">}</span>
+<span class="keyword">import</span> java.util.zip.CRC32
+<span class="keyword">import</span> scala.collection.Map
+<span class="keyword">import</span> scala.collection.mutable
+<span class="keyword">import</span> com.twitter.conversions.<span title="object com.twitter.conversions.time">time</span>._
+<span class="keyword">import</span> com.twitter.logging.Logger
+<span class="keyword">import</span> com.twitter.util.Time
+
+<span class="comment">/**
+ * Dump &quot;w3c&quot; style stats to a logger.
+ *
+ * This may be used as a periodic dump (by calling `write` directly) or to dump stats within a
+ * work unit, using the `TransactionalStatsCollection` API.
+ */</span>
+<span class="keyword">class</span> <a title="class W3CStats extends java.lang.Object with com.twitter.ostrich.stats.TransactionalStatsCollection with ScalaObject" id="9405">W3CStats</a><span title="ScalaObject" class="delimiter">(</span><a title="com.twitter.logging.Logger" id="50501">logger</a>: <span title="com.twitter.logging.Logger">Logger</span>, <a title="Array[String]" id="50502">fields</a>: <span title="Array[String]">Array</span><span class="delimiter">[</span>String<span class="delimiter">]</span>, <span class="keyword">val</span> <a title="Boolean" id="50503">printCrc</a>: <span title="Boolean">Boolean</span><span class="delimiter">)</span>
+<span class="keyword">extends</span> <a href="StatsCollection.scala.html#9364" title="com.twitter.ostrich.stats.TransactionalStatsCollection">TransactionalStatsCollection</a> <span class="delimiter">{</span>
+  <span class="keyword">private</span> <span class="keyword">val</span> <a title="java.util.zip.CRC32" id="50122">crcGenerator</a> = <span title="java.util.zip.CRC32" class="keyword">new</span> <span title="java.util.zip.CRC32">CRC32</span><span class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="keyword">private</span> <span class="keyword">val</span> <a title="java.text.SimpleDateFormat" id="50124">formatter</a> = <span title="(x$1: java.lang.String)java.text.SimpleDateFormat" class="keyword">new</span> <span title="java.text.SimpleDateFormat">SimpleDateFormat</span><span class="delimiter">(</span><span title="java.lang.String(&quot;dd-MMM-yyyy HH:mm:ss&quot;)" class="string">&quot;dd-MMM-yyyy HH:mm:ss&quot;</span><span class="delimiter">)</span>
+  <a href="#50124" title="=&gt; java.text.SimpleDateFormat">formatter</a>.<span title="(x$1: java.util.TimeZone)Unit">setTimeZone</span><span class="delimiter">(</span><span title="object java.util.TimeZone">TimeZone</span>.<span title="(x$1: java.lang.String)java.util.TimeZone">getTimeZone</span><span class="delimiter">(</span><span title="java.lang.String(&quot;GMT+0000&quot;)" class="string">&quot;GMT+0000&quot;</span><span class="delimiter">)</span><span class="delimiter">)</span>
+
+  <span class="keyword">private</span> <span class="keyword">var</span> <a title="Long" id="50127">headerCrc</a> = <span title="Long(0L)" class="long">0L</span>  <span class="comment">// Crc at the last call to generateHeader.</span>
+  <span class="keyword">private</span> <span class="keyword">var</span> <a title="Long" id="50130">previousHeaderCrc</a> = <span title="Long(0L)" class="long">0L</span>  <span class="comment">// Crc of the one-but-last call to generateHeader.</span>
+
+  <span class="comment">// The header lines will be written out this often, even if the fields haven't changed.</span>
+  <span class="comment">// (This lets log parsers resynchronize after a failure.)</span>
+  <span class="keyword">private</span> <span class="keyword">val</span> <a title="com.twitter.util.Duration" id="50132">headerRepeatFrequency</a> = <span title="implicit com.twitter.conversions.time.intToTimeableNumber : (i: Int)com.twitter.conversions.time.RichWholeNumber" class="int">5</span>.<span title="=&gt; com.twitter.util.Duration">minutes</span>
+  <span class="keyword">private</span> <span class="keyword">var</span> <a title="com.twitter.util.Time" id="50135">nextHeaderDumpAt</a> = <span title="object com.twitter.util.Time">Time</span>.<span title="=&gt; com.twitter.util.Time">now</span>
+
+  <span class="keyword">def</span> <a title="(summary: com.twitter.ostrich.stats.StatsSummary)Unit" id="50137">write</a><span class="delimiter">(</span><a title="com.twitter.ostrich.stats.StatsSummary" id="50562">summary</a>: <a href="StatsProvider.scala.html#9387" title="com.twitter.ostrich.stats.StatsSummary">StatsSummary</a><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="scala.collection.Map[String,Any]" id="50564">flatmap</a> = <a href="#50140" title="(summary: com.twitter.ostrich.stats.StatsSummary)scala.collection.Map[String,Any]">flatten</a><span class="delimiter">(</span><a href="#50562" title="com.twitter.ostrich.stats.StatsSummary">summary</a><span class="delimiter">)</span>
+    <span class="keyword">val</span> <a title="Seq[String]" id="50565">fieldList</a>: <span title="Seq[String]">Seq</span><span class="delimiter">[</span>String<span class="delimiter">]</span> = <span title="Seq[String]" class="keyword">if</span> <span class="delimiter">(</span><a href="#50502" title="(xs: Array[String])scala.collection.mutable.ArrayOps[String]">fields</a>.<span title="(x$1: Int)Boolean">size</span> &gt; <span title="Int(0)" class="int">0</span><span class="delimiter">)</span> <a href="#50502" title="(xs: Array[String])scala.collection.mutable.ArrayOps[String]">fields</a>.<span title="=&gt; Seq[String]">toSeq</span> <span class="keyword">else</span> <a href="#50564" title="scala.collection.Map[String,Any]">flatmap</a>.<span title="=&gt; Iterable[String]">keys</span>.<span title="=&gt; Seq[String]">toSeq</span>.<span title="(implicit ord: Ordering[String])Seq[String]">sorted</span>
+    <span class="keyword">val</span> <a title="String" id="50566">fieldsHeader</a> = <a href="#50565" title="Seq[String]">fieldList</a>.<span title="(start: String,sep: String,end: String)String">mkString</span><span class="delimiter">(</span><span title="java.lang.String(&quot;#Fields: &quot;)" class="string">&quot;#Fields: &quot;</span>, <span title="java.lang.String(&quot; &quot;)" class="string">&quot; &quot;</span>, <span title="java.lang.String(&quot;&quot;)" class="string">&quot;&quot;</span><span class="delimiter">)</span>
+    <a href="#50127" title="(x$1: Long)Unit">headerCrc</a> = <a href="#50138" title="(header: String)Long">crc32</a><span class="delimiter">(</span><a href="#50566" title="String">fieldsHeader</a><span class="delimiter">)</span>
+    <span title="Unit" class="keyword">if</span> <span class="delimiter">(</span><a href="#50127" title="(x$1: Long)Boolean">headerCrc</a> <span title="(x$1: Boolean)Boolean">!=</span> <a href="#50130" title="=&gt; Long">previousHeaderCrc</a> || <span title="object com.twitter.util.Time">Time</span>.<span title="(that: com.twitter.util.Time)Boolean">now</span> &gt;= <a href="#50135" title="=&gt; com.twitter.util.Time">nextHeaderDumpAt</a><span class="delimiter">)</span> <span class="delimiter">{</span>
+      <a href="#50501" title="com.twitter.logging.Logger">logger</a>.<span title="(msg: String,items: Any*)Unit">info</span><span class="delimiter">(</span><a href="#50139" title="(fieldsHeader: String)String">generateHeader</a><span class="delimiter">(</span><a href="#50566" title="String">fieldsHeader</a><span class="delimiter">)</span><span class="delimiter">)</span>
+      <a href="#50135" title="(x$1: com.twitter.util.Time)Unit">nextHeaderDumpAt</a> += <a href="#50132" title="=&gt; com.twitter.util.Duration">headerRepeatFrequency</a>
+    <span class="delimiter">}</span>
+    <a href="#50501" title="com.twitter.logging.Logger">logger</a>.<span title="(msg: String,items: Any*)Unit">info</span><span class="delimiter">(</span><a href="#50141" title="(fieldList: Seq[String],flatmap: scala.collection.Map[String,Any])String">generateLine</a><span class="delimiter">(</span><a href="#50565" title="Seq[String]">fieldList</a>, <a href="#50564" title="scala.collection.Map[String,Any]">flatmap</a><span class="delimiter">)</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">private</span> <span class="keyword">def</span> <a title="(header: String)Long" id="50138">crc32</a><span class="delimiter">(</span><a title="String" id="51131">header</a>: <span title="String">String</span><span class="delimiter">)</span>: <span title="Long">Long</span> = <span class="delimiter">{</span>
+    <a href="#50122" title="=&gt; java.util.zip.CRC32">crcGenerator</a>.<span title="()Unit">reset</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <a href="#50122" title="=&gt; java.util.zip.CRC32">crcGenerator</a>.<span title="(x$1: Array[Byte])Unit">update</span><span class="delimiter">(</span><a href="#51131" title="String">header</a>.<span title="(x$1: java.lang.String)Array[Byte]">getBytes</span><span class="delimiter">(</span><span title="java.lang.String(&quot;UTF-8&quot;)" class="string">&quot;UTF-8&quot;</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <a href="#50122" title="=&gt; java.util.zip.CRC32">crcGenerator</a>.<span title="()Long">getValue</span><span class="delimiter">(</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">def</span> <a title="(fieldsHeader: String)String" id="50139">generateHeader</a><span class="delimiter">(</span><a title="String" id="51146">fieldsHeader</a>: <span title="String">String</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <a href="#50130" title="(x$1: Long)Unit">previousHeaderCrc</a> = <a href="#50127" title="=&gt; Long">headerCrc</a>
+    <a href="#50127" title="(x$1: Long)Unit">headerCrc</a> = <a href="#50138" title="(header: String)Long">crc32</a><span class="delimiter">(</span><a href="#51146" title="String">fieldsHeader</a><span class="delimiter">)</span>
+    <span title="(xs: String*)(implicit evidence$2: scala.reflect.ClassManifest[String])Array[String]">Array</span><span title="(xs: Array[String])scala.collection.mutable.ArrayOps[String]" class="delimiter">(</span><span title="java.lang.String(&quot;#Version: 1.0&quot;)" class="string">&quot;#Version: 1.0&quot;</span>, <span title="java.lang.String(&quot;\012&quot;)" class="string">&quot;\n&quot;</span>,
+          <span title="java.lang.String(&quot;#Date: &quot;)" class="string">&quot;#Date: &quot;</span>, <a href="#50124" title="=&gt; java.text.SimpleDateFormat">formatter</a>.<span title="(x$1: java.util.Date)java.lang.String">format</span><span class="delimiter">(</span><span title="object com.twitter.util.Time">Time</span>.<span title="=&gt; com.twitter.util.Time">now</span>.<span title="=&gt; java.util.Date">toDate</span><span class="delimiter">)</span>, <span title="java.lang.String(&quot;\012&quot;)" class="string">&quot;\n&quot;</span>,
+          <span title="java.lang.String(&quot;#CRC: &quot;)" class="string">&quot;#CRC: &quot;</span>, <a href="#50127" title="=&gt; Long">headerCrc</a>.<span title="()java.lang.String">toString</span>, <span title="java.lang.String(&quot;\012&quot;)" class="string">&quot;\n&quot;</span>,
+          <a href="#51146" title="String">fieldsHeader</a><span class="delimiter">)</span>.<span title="(sep: String)String">mkString</span><span class="delimiter">(</span><span title="java.lang.String(&quot;&quot;)" class="string">&quot;&quot;</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">private</span> <span class="keyword">def</span> <a title="(summary: com.twitter.ostrich.stats.StatsSummary)scala.collection.Map[String,Any]" id="50140">flatten</a><span class="delimiter">(</span><a title="com.twitter.ostrich.stats.StatsSummary" id="50567">summary</a>: <a href="StatsProvider.scala.html#9387" title="com.twitter.ostrich.stats.StatsSummary">StatsSummary</a><span class="delimiter">)</span>: <span title="scala.collection.Map[String,Any]">Map</span><span class="delimiter">[</span>String, Any<span class="delimiter">]</span> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="scala.collection.mutable.HashMap[String,Any]" id="51659">flatmap</a> = <span title="scala.collection.mutable.HashMap[String,Any]" class="keyword">new</span> mutable.<span title="scala.collection.mutable.HashMap[String,Any]">HashMap</span><span class="delimiter">[</span>String, Any<span class="delimiter">]</span>
+    <a href="#51659" title="(xs: scala.collection.TraversableOnce[(String, Any)])flatmap.type">flatmap</a> ++= <a href="#50567" title="com.twitter.ostrich.stats.StatsSummary">summary</a>.<a href="StatsProvider.scala.html#28600" title="=&gt; scala.collection.Map[String,Long]">counters</a>
+    <a href="#50567" title="com.twitter.ostrich.stats.StatsSummary">summary</a>.<a href="StatsProvider.scala.html#28602" title="=&gt; scala.collection.Map[String,com.twitter.ostrich.stats.Distribution]">metrics</a>.<span title="(f: ((String, com.twitter.ostrich.stats.Distribution)) =&gt; Unit)Unit">foreach</span> <a href="#51675" title="Unit" class="delimiter">{</a> <span title="Unit" class="keyword">case</span> <span class="delimiter">(</span><a title="String" id="51678">k1</a>, <a title="com.twitter.ostrich.stats.Distribution" id="51679">d</a><span class="delimiter">)</span> =&gt;
+      <span class="comment">// w3c logs don't want percentiles (for now?)</span>
+      <a href="#51679" title="com.twitter.ostrich.stats.Distribution">d</a>.<a href="Distribution.scala.html#34167" title="=&gt; scala.collection.Map[String,Long]">toMapWithoutPercentiles</a>.<span title="(f: ((String, Long)) =&gt; Unit)Unit">foreach</span> <a href="#51695" title="Unit" class="delimiter">{</a> <span title="Unit" class="keyword">case</span> <span class="delimiter">(</span><a title="String" id="51698">k2</a>, <a title="Long" id="51699">v</a><span class="delimiter">)</span> =&gt; <a href="#51659" title="(key: String,value: Any)Unit">flatmap</a><span class="delimiter">(</span><a href="#51678" title="(x$1: Any)java.lang.String">k1</a> <span title="(x$1: Any)java.lang.String">+</span> <span title="java.lang.String(&quot;_&quot;)" class="string">&quot;_&quot;</span> + <a href="#51698" title="String">k2</a><span class="delimiter">)</span> = <a href="#51699" title="Long">v</a> <span class="delimiter">}</span>
+    <span class="delimiter">}</span>
+    <a href="#51659" title="(xs: scala.collection.TraversableOnce[(String, Any)])flatmap.type">flatmap</a> ++= <a href="#50567" title="com.twitter.ostrich.stats.StatsSummary">summary</a>.<a href="StatsProvider.scala.html#28604" title="=&gt; scala.collection.Map[String,Double]">gauges</a>
+    <a href="#51659" title="(xs: scala.collection.TraversableOnce[(String, Any)])flatmap.type">flatmap</a> ++= <a href="#50567" title="com.twitter.ostrich.stats.StatsSummary">summary</a>.<a href="StatsProvider.scala.html#28606" title="=&gt; scala.collection.Map[String,String]">labels</a>
+    <a href="#51659" title="scala.collection.mutable.HashMap[String,Any]">flatmap</a>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">private</span> <span class="keyword">def</span> <a title="(fieldList: Seq[String],flatmap: scala.collection.Map[String,Any])String" id="50141">generateLine</a><span class="delimiter">(</span><a title="Seq[String]" id="51642">fieldList</a>: <span title="Seq[String]">Seq</span><span class="delimiter">[</span>String<span class="delimiter">]</span>, <a title="scala.collection.Map[String,Any]" id="51643">flatmap</a>: <span title="scala.collection.Map[String,Any]">Map</span><span class="delimiter">[</span>String, Any<span class="delimiter">]</span><span class="delimiter">)</span>: <span title="String">String</span> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="String" id="51714">rv</a> = <a href="#51642" title="Seq[String]">fieldList</a>.<span title="(f: (String) =&gt; String)(implicit bf: scala.collection.generic.CanBuildFrom[Seq[String],String,Seq[String]])Seq[String]">map</span> <span title="scala.collection.generic.CanBuildFrom[scala.collection.Seq.Coll,String,Seq[String]]" class="delimiter">{</span> <a title="String" id="51727">key</a> =&gt; <a href="#51643" title="scala.collection.Map[String,Any]">flatmap</a>.<span title="(key: String)Option[Any]">get</span><span class="delimiter">(</span><a href="#51727" title="String">key</a><span class="delimiter">)</span>.<span title="(f: (Any) =&gt; String)Option[String]">map</span> <span class="delimiter">{</span> <a href="#50142" title="(value: Any)String">stringify</a><span class="delimiter">(</span><a href="#51734" title="Any">_</a><span class="delimiter">)</span> <span class="delimiter">}</span>.<span title="(default: =&gt; String)String">getOrElse</span><span class="delimiter">(</span><span title="java.lang.String(&quot;-&quot;)" class="string">&quot;-&quot;</span><span class="delimiter">)</span> <span class="delimiter">}</span>.<span title="(sep: String)String">mkString</span><span class="delimiter">(</span><span title="java.lang.String(&quot; &quot;)" class="string">&quot; &quot;</span><span class="delimiter">)</span>
+    <span title="String" class="keyword">if</span> <span class="delimiter">(</span><a href="#50503" title="=&gt; Boolean">printCrc</a><span class="delimiter">)</span> <span class="delimiter">(</span><a href="#50127" title="(x$1: java.lang.String)java.lang.String">headerCrc</a> <span title="(x$1: Any)java.lang.String">+</span> <span title="java.lang.String(&quot; &quot;)" class="string">&quot; &quot;</span> + <a href="#51714" title="String">rv</a><span class="delimiter">)</span> <span class="keyword">else</span> <a href="#51714" title="String">rv</a>
+  <span class="delimiter">}</span>
+
+  <span class="keyword">private</span> <span class="keyword">def</span> <a title="(value: Any)String" id="50142">stringify</a><span class="delimiter">(</span><a title="Any" id="51735">value</a>: <span title="Any">Any</span><span class="delimiter">)</span>: <span title="String">String</span> = <a href="#51735" title="Any">value</a> <span title="String" class="keyword">match</span> <span class="delimiter">{</span>
+    <span title="String" class="keyword">case</span> <a title="String" id="51811">s</a>: <span title="String">String</span> =&gt; <a href="#51811" title="String">s</a>
+    <span title="java.lang.String" class="keyword">case</span> <a title="Long" id="51812">l</a>: <span title="Long">Long</span> =&gt; <a href="#51812" title="Long">l</a>.<span title="()java.lang.String">toString</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span title="java.lang.String" class="keyword">case</span> <a title="Int" id="51814">i</a>: <span title="Int">Int</span> =&gt; <a href="#51814" title="Int">i</a>.<span title="()java.lang.String">toString</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span title="java.lang.String" class="keyword">case</span> <a title="Double" id="51816">d</a>: <span title="Double">Double</span> =&gt; <a href="#51816" title="Double">d</a>.<span title="()java.lang.String">toString</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span title="java.lang.String(&quot;-&quot;)" class="keyword">case</span> _ =&gt; <span title="java.lang.String(&quot;-&quot;)" class="string">&quot;-&quot;</span>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+        </pre>
+    </body>
+</html>

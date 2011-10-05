@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+			<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=utf-8" ></meta>
+        <title>Heapster.scala</title>
+        <script type="text/javascript" src="jquery-all.js"></script>
+        <script type="text/javascript" src="linked.js"></script>
+        <link rel="stylesheet" type="text/css" href="style.css" title="Style"></link>
+    </head>
+    <body>
+        <pre>
+<span class="comment">/*
+ * Copyright 2010 Twitter, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may
+ * not use this file except in compliance with the License. You may obtain
+ * a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</span>
+
+<span class="keyword">package</span> com.twitter.ostrich.admin
+
+<span class="keyword">import</span> com.twitter.util.Duration
+
+<span class="comment">/**
+ * Support for heapster profiling (google perftools compatible):
+ *
+ * https://github.com/mariusaeriksen/heapster
+ */</span>
+<span class="keyword">class</span> <a title="class Heapster extends java.lang.Object with com.twitter.ostrich.admin.Service with ScalaObject" id="9235">Heapster</a><span title="ScalaObject" class="delimiter">(</span><a title="Class[_]" id="31392">klass</a>: <span title="Class[_]">Class</span><span class="delimiter">[</span>_<span class="delimiter">]</span><span class="delimiter">)</span> <span class="keyword">extends</span> <a href="Service.scala.html#9253" title="com.twitter.ostrich.admin.Service">Service</a> <span class="delimiter">{</span>
+  <span class="keyword">private</span> <span class="keyword">val</span> <a title="java.lang.reflect.Method" id="20894">startM</a> = <a href="#31392" title="Class[_]">klass</a>.<span title="(x$1: java.lang.String,x$2: &lt;repeated...&gt;[java.lang.Class[_]])java.lang.reflect.Method">getDeclaredMethod</span><span class="delimiter">(</span><span title="java.lang.String(&quot;start&quot;)" class="string">&quot;start&quot;</span><span class="delimiter">)</span>
+  <span class="keyword">private</span> <span class="keyword">val</span> <a title="java.lang.reflect.Method" id="20896">stopM</a>  = <a href="#31392" title="Class[_]">klass</a>.<span title="(x$1: java.lang.String,x$2: &lt;repeated...&gt;[java.lang.Class[_]])java.lang.reflect.Method">getDeclaredMethod</span><span class="delimiter">(</span><span title="java.lang.String(&quot;stop&quot;)" class="string">&quot;stop&quot;</span><span class="delimiter">)</span>
+  <span class="keyword">private</span> <span class="keyword">val</span> <a title="java.lang.reflect.Method" id="20898">dumpProfileM</a> =
+    <a href="#31392" title="Class[_]">klass</a>.<span title="(x$1: java.lang.String,x$2: &lt;repeated...&gt;[java.lang.Class[_]])java.lang.reflect.Method">getDeclaredMethod</span><span class="delimiter">(</span><span title="java.lang.String(&quot;dumpProfile&quot;)" class="string">&quot;dumpProfile&quot;</span>, classOf<span title="java.lang.Class[java.lang.Boolean](classOf[java.lang.Boolean])" class="delimiter">[</span>java.lang.Boolean<span class="delimiter">]</span><span class="delimiter">)</span>
+  <span class="keyword">private</span> <span class="keyword">val</span> <a title="java.lang.reflect.Method" id="20900">clearProfileM</a> = <a href="#31392" title="Class[_]">klass</a>.<span title="(x$1: java.lang.String,x$2: &lt;repeated...&gt;[java.lang.Class[_]])java.lang.reflect.Method">getDeclaredMethod</span><span class="delimiter">(</span><span title="java.lang.String(&quot;clearProfile&quot;)" class="string">&quot;clearProfile&quot;</span><span class="delimiter">)</span>
+  <span class="keyword">private</span> <span class="keyword">val</span> <a title="java.lang.reflect.Method" id="20902">setSamplingPeriodM</a> =
+    <a href="#31392" title="Class[_]">klass</a>.<span title="(x$1: java.lang.String,x$2: &lt;repeated...&gt;[java.lang.Class[_]])java.lang.reflect.Method">getDeclaredMethod</span><span class="delimiter">(</span><span title="java.lang.String(&quot;setSamplingPeriod&quot;)" class="string">&quot;setSamplingPeriod&quot;</span>, classOf<span title="java.lang.Class[java.lang.Integer](classOf[java.lang.Integer])" class="delimiter">[</span>java.lang.Integer<span class="delimiter">]</span><span class="delimiter">)</span>
+
+  <span class="keyword">def</span> <a title="()Unit" id="20904">start</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span> <a href="#20894" title="=&gt; java.lang.reflect.Method">startM</a>.<span title="(x$1: Any,x$2: &lt;repeated...&gt;[java.lang.Object])java.lang.Object">invoke</span><span title="Unit" class="delimiter">(</span><span title="Null(null)" class="keyword">null</span><span class="delimiter">)</span> <span class="delimiter">}</span>
+  <span class="keyword">def</span> <a title="()Unit" id="20905">shutdown</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span> <a href="#20896" title="=&gt; java.lang.reflect.Method">stopM</a>.<span title="(x$1: Any,x$2: &lt;repeated...&gt;[java.lang.Object])java.lang.Object">invoke</span><span title="Unit" class="delimiter">(</span><span title="Null(null)" class="keyword">null</span><span class="delimiter">)</span> <span class="delimiter">}</span>
+  <span class="keyword">def</span> <a title="(period: java.lang.Integer)Unit" id="20906">setSamplingPeriod</a><span class="delimiter">(</span><a title="java.lang.Integer" id="21100">period</a>: java.lang.<span title="java.lang.Integer">Integer</span><span class="delimiter">)</span> <span class="delimiter">{</span> <a href="#20902" title="=&gt; java.lang.reflect.Method">setSamplingPeriodM</a>.<span title="(x$1: Any,x$2: &lt;repeated...&gt;[java.lang.Object])java.lang.Object">invoke</span><span title="Unit" class="delimiter">(</span><span title="Null(null)" class="keyword">null</span>, <a href="#21100" title="java.lang.Integer">period</a><span class="delimiter">)</span> <span class="delimiter">}</span>
+  <span class="keyword">def</span> <a title="()Unit" id="20907">clearProfile</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span> <a href="#20900" title="=&gt; java.lang.reflect.Method">clearProfileM</a>.<span title="(x$1: Any,x$2: &lt;repeated...&gt;[java.lang.Object])java.lang.Object">invoke</span><span title="Unit" class="delimiter">(</span><span title="Null(null)" class="keyword">null</span><span class="delimiter">)</span> <span class="delimiter">}</span>
+  <span class="keyword">def</span> <a title="(forceGC: java.lang.Boolean)Array[Byte]" id="20908">dumpProfile</a><span class="delimiter">(</span><a title="java.lang.Boolean" id="21490">forceGC</a>: java.lang.<span title="java.lang.Boolean">Boolean</span><span class="delimiter">)</span>: <span title="Array[Byte]">Array</span><span class="delimiter">[</span>Byte<span class="delimiter">]</span> =
+    <a href="#20898" title="=&gt; java.lang.reflect.Method">dumpProfileM</a>.<span title="(x$1: Any,x$2: &lt;repeated...&gt;[java.lang.Object])java.lang.Object">invoke</span><span class="delimiter">(</span><span title="Null(null)" class="keyword">null</span>, <a href="#21490" title="java.lang.Boolean">forceGC</a><span class="delimiter">)</span>.<span title="[T0]T0">asInstanceOf</span><span title="Array[Byte]" class="delimiter">[</span><span title="Array[Byte]">Array</span><span class="delimiter">[</span>Byte<span class="delimiter">]</span><span class="delimiter">]</span>
+
+  <span class="keyword">def</span> <a title="(howlong: com.twitter.util.Duration,samplingPeriod: Int,forceGC: Boolean)Array[Byte]" id="20909">profile</a><span class="delimiter">(</span><a title="com.twitter.util.Duration" id="21091">howlong</a>: <span title="com.twitter.util.Duration">Duration</span>, <a title="=&gt; Int" id="21092">samplingPeriod</a>: <span title="Int">Int</span> = <span class="int">10</span><span title="Int(5242880)">&lt;&lt;</span><span class="int">19</span>, <a title="=&gt; Boolean" id="21093">forceGC</a>: <span title="Boolean">Boolean</span> = <span title="Boolean(true)" class="keyword">true</span><span class="delimiter">)</span> = <span class="delimiter">{</span>
+    <a href="#20907" title="()Unit">clearProfile</a><span class="delimiter">(</span><span class="delimiter">)</span>
+    <a href="#20906" title="(period: java.lang.Integer)Unit">setSamplingPeriod</a><span class="delimiter">(</span><a href="#21092" title="implicit scala.Predef.int2Integer : (x: Int)java.lang.Integer">samplingPeriod</a><span class="delimiter">)</span>
+
+    <a href="#20904" title="()Unit">start</a><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span title="object java.lang.Thread">Thread</span>.<span title="(x$1: Long)Unit">sleep</span><span class="delimiter">(</span><a href="#21091" title="com.twitter.util.Duration">howlong</a>.<span title="=&gt; Long">inMilliseconds</span><span class="delimiter">)</span>
+    <a href="#20905" title="()Unit">shutdown</a><span class="delimiter">(</span><span class="delimiter">)</span>
+    <a href="#20908" title="(forceGC: java.lang.Boolean)Array[Byte]">dumpProfile</a><span class="delimiter">(</span><a href="#21093" title="implicit scala.Predef.boolean2Boolean : (x: Boolean)java.lang.Boolean">forceGC</a><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+<span class="keyword">object</span> <a title="object com.twitter.ostrich.admin.Heapster" id="9236">Heapster</a> <span title="ScalaObject" class="delimiter">{</span>
+  <span class="keyword">val</span> <a title="Option[com.twitter.ostrich.admin.Heapster]" id="20880">instance</a>: <span title="Option[com.twitter.ostrich.admin.Heapster]">Option</span><span class="delimiter">[</span>Heapster<span class="delimiter">]</span> = <span class="delimiter">{</span>
+    <span class="keyword">val</span> <a title="java.lang.ClassLoader" id="31448">loader</a> = <span title="object java.lang.ClassLoader">ClassLoader</span>.<span title="()java.lang.ClassLoader">getSystemClassLoader</span><span class="delimiter">(</span><span class="delimiter">)</span>
+    <span class="keyword">try</span> <span class="delimiter">{</span>
+      <span title="(x: com.twitter.ostrich.admin.Heapster)Some[com.twitter.ostrich.admin.Heapster]">Some</span><span class="delimiter">(</span><span title="com.twitter.ostrich.admin.Heapster" class="keyword">new</span> <a href="#9235" title="com.twitter.ostrich.admin.Heapster">Heapster</a><span class="delimiter">(</span><a href="#31448" title="java.lang.ClassLoader">loader</a>.<span title="(x$1: java.lang.String)java.lang.Class[_]">loadClass</span><span class="delimiter">(</span><span title="java.lang.String(&quot;Heapster&quot;)" class="string">&quot;Heapster&quot;</span><span class="delimiter">)</span><span class="delimiter">)</span><span class="delimiter">)</span>
+    <span class="delimiter">}</span> <span class="keyword">catch</span> <span class="delimiter">{</span>
+      <span title="None.type" class="keyword">case</span> _: <span title="java.lang.ClassNotFoundException">ClassNotFoundException</span> =&gt;
+        <span title="object None">None</span>
+    <span class="delimiter">}</span>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+        </pre>
+    </body>
+</html>

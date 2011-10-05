@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+			<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=utf-8" ></meta>
+        <title>W3CStatsLogger.scala</title>
+        <script type="text/javascript" src="jquery-all.js"></script>
+        <script type="text/javascript" src="linked.js"></script>
+        <link rel="stylesheet" type="text/css" href="style.css" title="Style"></link>
+    </head>
+    <body>
+        <pre>
+<span class="comment">/*
+ * Copyright 2011 Twitter, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may
+ * not use this file except in compliance with the License. You may obtain
+ * a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */</span>
+
+<span class="keyword">package</span> com.twitter.ostrich
+<span class="keyword">package</span> stats
+
+<span class="keyword">import</span> com.twitter.logging.Logger
+<span class="keyword">import</span> com.twitter.util.Duration
+<span class="keyword">import</span> admin.PeriodicBackgroundProcess
+
+<span class="comment">/**
+ * Log all collected w3c stats at a regular interval.
+ */</span>
+<span class="keyword">class</span> <a title="class W3CStatsLogger extends com.twitter.ostrich.admin.PeriodicBackgroundProcess with ScalaObject" id="9412">W3CStatsLogger</a><a href="BackgroundProcess.scala.html#24986" title="ScalaObject" class="delimiter">(</a><span class="keyword">val</span> <a title="com.twitter.logging.Logger" id="38731">logger</a>: <span title="com.twitter.logging.Logger">Logger</span>, <a title="com.twitter.util.Duration" id="38732">frequency</a>: <span title="com.twitter.util.Duration">Duration</span>, <a title="com.twitter.ostrich.stats.StatsCollection" id="38733">collection</a>: <a href="StatsCollection.scala.html#9357" title="com.twitter.ostrich.stats.StatsCollection">StatsCollection</a><span class="delimiter">)</span>
+<span class="keyword">extends</span> <a href="BackgroundProcess.scala.html#9214" title="com.twitter.ostrich.admin.PeriodicBackgroundProcess">PeriodicBackgroundProcess</a><span class="delimiter">(</span><span title="java.lang.String(&quot;W3CStatsLogger&quot;)" class="string">&quot;W3CStatsLogger&quot;</span>, <a href="#38732" title="com.twitter.util.Duration">frequency</a><span class="delimiter">)</span> <span class="delimiter">{</span>
+  <span class="keyword">def</span> <a title="(logger: com.twitter.logging.Logger,frequency: com.twitter.util.Duration)com.twitter.ostrich.stats.W3CStatsLogger" id="38721" class="keyword">this</a><span class="delimiter">(</span><a title="com.twitter.logging.Logger" id="38729">logger</a>: <span title="com.twitter.logging.Logger">Logger</span>, <a title="com.twitter.util.Duration" id="38730">frequency</a>: <span title="com.twitter.util.Duration">Duration</span><span class="delimiter">)</span> = <a href="#9412" title="W3CStatsLogger.this.type" class="keyword">this</a><span class="delimiter">(</span><a href="#38729" title="com.twitter.logging.Logger">logger</a>, <a href="#38730" title="com.twitter.util.Duration">frequency</a>, <a href="Stats.scala.html#9346" title="object com.twitter.ostrich.stats.Stats">Stats</a><span class="delimiter">)</span>
+
+  <span class="keyword">val</span> <a title="com.twitter.ostrich.stats.W3CStats" id="38722">w3cStats</a> = <span title="com.twitter.ostrich.stats.W3CStats" class="keyword">new</span> <a href="W3CStats.scala.html#9405" title="com.twitter.ostrich.stats.W3CStats">W3CStats</a><span class="delimiter">(</span><a href="#38731" title="=&gt; com.twitter.logging.Logger">logger</a>, <span title="(xs: String*)(implicit evidence$2: scala.reflect.ClassManifest[String])Array[String]">Array</span><span title="(clazz: Class[_])scala.reflect.ClassManifest[String]" class="delimiter">(</span><span class="delimiter">)</span>, <span title="Boolean(true)" class="keyword">true</span><span class="delimiter">)</span>
+  <span class="keyword">val</span> <a title="com.twitter.ostrich.stats.StatsListener" id="38724">listener</a> = <a href="StatsListener.scala.html#28576" title="(collection: com.twitter.ostrich.stats.StatsCollection)com.twitter.ostrich.stats.StatsListener" class="keyword">new</a> <a href="StatsListener.scala.html#9377" title="com.twitter.ostrich.stats.StatsListener">StatsListener</a><span class="delimiter">(</span><a href="#38733" title="com.twitter.ostrich.stats.StatsCollection">collection</a><span class="delimiter">)</span>
+
+  <span class="keyword">def</span> <a title="()Unit" id="38726">periodic</a><span class="delimiter">(</span><span class="delimiter">)</span> <span class="delimiter">{</span>
+    <a href="#38722" title="=&gt; com.twitter.ostrich.stats.W3CStats">w3cStats</a>.<a href="W3CStats.scala.html#50137" title="(summary: com.twitter.ostrich.stats.StatsSummary)Unit">write</a><span class="delimiter">(</span><a href="#38724" title="=&gt; com.twitter.ostrich.stats.StatsListener">listener</a>.<a href="StatsListener.scala.html#28587" title="()com.twitter.ostrich.stats.StatsSummary">get</a><span class="delimiter">(</span><span class="delimiter">)</span><span class="delimiter">)</span>
+  <span class="delimiter">}</span>
+<span class="delimiter">}</span>
+
+        </pre>
+    </body>
+</html>
