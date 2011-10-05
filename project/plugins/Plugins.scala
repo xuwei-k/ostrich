@@ -3,14 +3,8 @@ import sbt._
 class Plugins(info: ProjectInfo) extends PluginDefinition(info) {
   import scala.collection.jcl
   val environment = jcl.Map(System.getenv())
-  def isSBTOpenTwitter = environment.get("SBT_OPEN_TWITTER").isDefined
-  def isSBTTwitter = environment.get("SBT_TWITTER").isDefined
 
-  override def repositories = if (isSBTOpenTwitter) {
-    Set("twitter.artifactory" at "http://artifactory.local.twitter.com/open-source/")
-  } else if (isSBTTwitter) {
-    Set("twitter.artifactory" at "http://artifactory.local.twitter.com/repo/")
-  } else {
+  override def repositories = { 
     super.repositories ++ Set(
       "twitter.com" at "http://maven.twttr.com/",
       "scala-tools" at "http://scala-tools.org/repo-releases/",

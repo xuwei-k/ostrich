@@ -4,16 +4,15 @@ import sbt._
 import com.twitter.sbt._
 
 class OstrichProject(info: ProjectInfo) extends StandardLibraryProject(info)
-  with SubversionPublisher
+  with AutoCompilerPlugins
   with DefaultRepos
-  with PublishSourcesAndJavadocs
-  with PublishSite
 {
   val utilVersion = "1.10.2"
   val util = "com.twitter" % "util-core" % utilVersion
   val eval = "com.twitter" % "util-eval" % utilVersion
   val logging = "com.twitter" % "util-logging" % utilVersion
   val json = "com.twitter" % "json_2.8.1" % "2.1.6"
+  val sxr = compilerPlugin("org.scala-tools.sxr" %% "sxr" % "0.2.7")
 
   // for tests:
   val specs = "org.scala-tools.testing" % "specs_2.8.1" % "1.6.6" % "test"
@@ -45,5 +44,4 @@ class OstrichProject(info: ProjectInfo) extends StandardLibraryProject(info)
   override def copyResourcesAction = super.copyResourcesAction && makeOstrichProperties
   override def packagePaths = super.packagePaths +++ ostrichPropertiesPath
 
-  override def subversionRepository = Some("http://svn.local.twitter.com/maven-public")
 }
